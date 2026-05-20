@@ -1,5 +1,5 @@
 ---
-title: "Projekt EPS — Punkt 4: Analiza zależności przestrzennych"
+title: "Projekt EPS"
 subtitle: "Intensywność turystyki w regionach NUTS2 UE (2017–2023)"
 author: "Zespół projektowy"
 date: "`r Sys.Date()`"
@@ -17,12 +17,10 @@ rm(list = ls())
 # Pakiety
 
 ```{r libraries, message=FALSE, warning=FALSE}
-# install.packages(c("spdep", "sf", "tmap", "bispdep", "dplyr", "ggplot2"))
-
-library(spdep)      # Moran I, macierze sasiedztwa
-library(sf)         # obiekty przestrzenne
-library(tmap)       # mapy
-library(bispdep)    # mapa klastrow LISA
+library(spdep)
+library(sf)
+library(tmap)
+library(bispdep)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
@@ -31,183 +29,126 @@ library(tidyr)
 # 1. Wczytanie danych
 
 ```{r load-data}
-# Panel danych (173 regiony x 7 lat = 1211 obserwacji, 22 zmienne)
+# Panel danych (220 regionów x 7 lat = 1540 obserwacji, 17 zmiennych)
 panel <- readRDS("panel_final.rds")
 
-# Mapa NUTS2 (173 regiony zgodne z panelem)
+# Mapa NUTS2 (220 regionów zgodnych z panelem)
 nuts2 <- st_read("nuts2_final.gpkg", quiet = TRUE)
 
 # Sprawdzenie spójności
-cat("Liczba regionow w panelu:", length(unique(panel$geo_id)), "\n")
-cat("Liczba regionow w mapie: ", nrow(nuts2), "\n")
-cat("Identyczny zbior?         ",
+cat("Liczba regionów w panelu:", length(unique(panel$geo_id)), "\n")
+cat("Liczba regionów w mapie: ", nrow(nuts2), "\n")
+cat("Identyczny zbiór?        ",
     setequal(unique(panel$geo_id), nuts2$NUTS_ID), "\n")
 ```
 
 ```{r reproject}
 # Reprojekcja do EPSG:3035 (Europejska projekcja Equal Area)
-# Potrzebne do prawidlowego liczenia odleglosci (metry zamiast stopni)
 nuts2_proj <- st_transform(nuts2, 3035)
-st_crs(nuts2_proj)
 ```
 
-# 2. Wizualizacja zjawiska — mapy intensywności turystyki
+# 2. Wizualizacja zjawiska — mapy intensywności turystyki (punkt 3 PDFa)
 
-## 2.1 Mapy choropletowe dla 2019 i 2023
+## 2.1 Przygotowanie danych do map
 
 ```{r prepare-maps}
-# Dolaczamy do mapy dane z dwoch reprezentatywnych lat: 2019 (pre-COVID)
-# i 2023 (post-COVID). To realizuje rowniez punkt 3 PDFa (wizualizacja).
+# 2019 = ostatni rok pre-COVID, 2023 = post-COVID
 map_2019 <- nuts2_proj |>
-  left_join(panel |> filter(year == 2019),
-            by = c("NUTS_ID" = "geo_id"))
+  left_join(panel |> filter(year == 2019), by = c("NUTS_ID" = "geo_id"))
 
 map_2023 <- nuts2_proj |>
-  left_join(panel |> filter(year == 2023),
-            by = c("NUTS_ID" = "geo_id"))
+  left_join(panel |> filter(year == 2023), by = c("NUTS_ID" = "geo_id"))
 ```
 
+## 2.2 Mapa choropletowa 2019 (pre-COVID)
+
 ```{r map-2019, fig.width=10, fig.height=8}
-# Mapa kwantylowa 2019 — na zmiennej logarytmowanej (zeby wyspy nie zjadly skali)
 m_2019 <- tm_shape(map_2019) +
   tm_polygons(
     fill = "ln_nights_per_1000pop",
     fill.scale = tm_scale_intervals(
-      style = "quantile",
-      n = 7,
-      values = "brewer.yl_or_rd"
+      style = "quantile", n = 7, values = "brewer.yl_or_rd"
     ),
     fill.legend = tm_legend(title = "ln(noclegów/1000 mieszk.)"),
-    col = "white",
-    lwd = 0.3
+    col = "white", lwd = 0.3
   ) +
   tm_layout(
-    legend.position = c("left", "top"),         # <-- lewy górny
-    legend.title.size = 0.8,
-    legend.text.size = 0.7,
-    legend.bg.color = "white",
-    legend.bg.alpha = 0.85,
+    legend.position = c("left", "top"),
+    legend.title.size = 0.8, legend.text.size = 0.7,
+    legend.bg.color = "white", legend.bg.alpha = 0.85,
     legend.frame = TRUE
   ) +
   tm_title("Intensywność turystyki w regionach UE (NUTS2), 2019")
 
-# Zapisz do pliku
-tmap_save(m_2019, "mapa_turystyka_2019.png",
-          width = 10, height = 8, dpi = 300)
-
-# Pokaż w RStudio Plots
+tmap_save(m_2019, "mapa_turystyka_2019.png", width = 10, height = 8, dpi = 300)
 m_2019
 ```
+
+## 2.3 Mapa choropletowa 2023 (post-COVID)
 
 ```{r map-2023, fig.width=10, fig.height=8}
 m_2023 <- tm_shape(map_2023) +
   tm_polygons(
     fill = "ln_nights_per_1000pop",
     fill.scale = tm_scale_intervals(
-      style = "quantile",
-      n = 7,
-      values = "brewer.yl_or_rd"
+      style = "quantile", n = 7, values = "brewer.yl_or_rd"
     ),
     fill.legend = tm_legend(title = "ln(noclegów/1000 mieszk.)"),
-    col = "white",
-    lwd = 0.3
+    col = "white", lwd = 0.3
   ) +
   tm_layout(
     legend.position = c("left", "top"),
-    legend.title.size = 0.8,
-    legend.text.size = 0.7,
-    legend.bg.color = "white",
-    legend.bg.alpha = 0.85,
+    legend.title.size = 0.8, legend.text.size = 0.7,
+    legend.bg.color = "white", legend.bg.alpha = 0.85,
     legend.frame = TRUE
   ) +
   tm_title("Intensywność turystyki w regionach UE (NUTS2), 2023")
 
-tmap_save(m_2023, "mapa_turystyka_2023.png",
-          width = 10, height = 8, dpi = 300)
+tmap_save(m_2023, "mapa_turystyka_2023.png", width = 10, height = 8, dpi = 300)
 m_2023
 ```
 
-## 2.2 Komentarz do map
+## 2.4 Komentarz do map
 
-```
-Na obu mapach widoczna jest wyraźna struktura przestrzenna intensywności 
-turystyki w Europie, stabilna między 2019 a 2023 rokiem:
+Na obu mapach widoczna jest wyraźna struktura przestrzenna intensywności turystyki w Europie, stabilna między 2019 a 2023 rokiem:
 
-1. **Pas śródziemnomorski** (najwyższa intensywność, ciemna czerwień): 
-   wybrzeże Hiszpanii (Baleary, Andaluzja, Katalonia), południowe Włochy 
-   (Sycylia, Sardynia, Lazio), Grecja (wyspy Egejskie, Kreta, Wyspy 
-   Jońskie), Chorwacja adriatycka, Algarve (Portugalia) oraz Korsyka. 
-   Regiony te osiągają ln(noclegów/1000 mieszk.) > 9.25, co odpowiada 
-   ponad 10 000 noclegów na 1000 mieszkańców rocznie.
+1. **Pas śródziemnomorski** (najwyższa intensywność, ciemna czerwień): wybrzeże Hiszpanii (Baleary, Andaluzja, Katalonia), południowe Włochy (Sycylia, Sardynia, Lazio), Grecja (wyspy Egejskie, Kreta, Wyspy Jońskie), Chorwacja adriatycka, Algarve (Portugalia) oraz Korsyka. Regiony te osiągają ln(noclegów/1000 mieszk.) > 9.25, co odpowiada ponad 10 000 noclegów na 1000 mieszkańców rocznie.
 
-2. **Europa Wschodnia** (najniższa intensywność, jasnożółty): wschodnia 
-   Polska (Mazowsze regionalne, Opolskie, Wielkopolskie), wewnętrzna 
-   Rumunia, Bułgaria oraz zachodnia Słowacja. Wartości ln < 7.5, czyli 
-   poniżej 1800 noclegów na 1000 mieszkańców.
+2. **Europa Wschodnia** (najniższa intensywność, jasnożółty): wschodnia Polska (Mazowsze regionalne, Opolskie, Wielkopolskie), wewnętrzna Rumunia, Bułgaria oraz zachodnia Słowacja. Wartości ln < 7.6, czyli poniżej 2000 noclegów na 1000 mieszkańców.
 
-3. **Skandynawia i kraje bałtyckie** (średnia intensywność, pomarańczowy): 
-   Szwecja, Finlandia, Dania wykazują umiarkowaną intensywność, wyższą 
-   niż Europa Wschodnia, ale niższą niż basen Morza Śródziemnego.
+3. **Niemcy i Austria**: Bawaria i Tyrol (ciemna czerwień) to silne destynacje turystyczne, podczas gdy regiony wschodnioniemieckie (Brandenburgia, Saksonia-Anhalt) są znacznie słabsze. Austria wykazuje wysoką intensywność turystyki w regionach alpejskich.
 
-4. **Francja** wykazuje dużą wewnętrzną heterogeniczność — od bardzo 
-   wysokiej intensywności na Korsyce i wybrzeżu (FRM0, FRJ2, FRL0) do 
-   umiarkowanej w regionach wewnętrznych (Centre-Val de Loire, 
-   Grand Est).
+4. **Skandynawia i kraje bałtyckie** (średnia intensywność, pomarańczowy): Szwecja, Finlandia, Dania wykazują umiarkowaną intensywność.
 
-5. **Porównanie 2019 vs 2023**: struktura przestrzenna jest 
-   zaskakująco stabilna. Nie zaobserwowano wyraźnej redystrybucji 
-   turystyki z regionów silnie turystycznych do słabszych po pandemii. 
-   Przedziały kwantylowe są niemal identyczne (np. górny kwantyl: 
-   9.25–11.68 w 2019 vs 9.28–11.67 w 2023), co sugeruje, że pandemia 
-   nie zmieniła fundamentalnie przestrzennego rozkładu turystyki w UE.
+5. **Francja** wykazuje dużą wewnętrzną heterogeniczność — od bardzo wysokiej intensywności na Korsyce i wybrzeżu do umiarkowanej w regionach wewnętrznych.
 
-6. **Przesłanka autokorelacji przestrzennej**: widoczne jest wyraźne 
-   "grupowanie" podobnych wartości — regiony o wysokiej intensywności 
-   sąsiadują z regionami o wysokiej intensywności (basen śródziemnomorski), 
-   a regiony o niskiej sąsiadują z regionami o niskiej (Europa Wschodnia). 
-   To wizualna przesłanka istnienia dodatniej autokorelacji przestrzennej, 
-   którą potwierdzimy formalnie statystyką Morana I w dalszej części analizy.
-```
+6. **Porównanie 2019 vs 2023**: struktura przestrzenna jest zaskakująco stabilna. Nie zaobserwowano wyraźnej redystrybucji turystyki po pandemii.
+
+7. **Przesłanka autokorelacji przestrzennej**: widoczne jest wyraźne "grupowanie" podobnych wartości — regiony o wysokiej intensywności sąsiadują z regionami o wysokiej intensywności (basen śródziemnomorski, Alpy austriacko-bawarskie), a regiony o niskiej sąsiadują z regionami o niskiej (Europa Wschodnia).
+
 
 # 3. Macierze wag przestrzennych
 
-Zgodnie z wymaganiami PDFa wyznaczamy **dwie macierze wag**: macierz sąsiedztwa I rzędu (Queen) z polityką `zero.policy` dla regionów wyspiarskich, oraz macierz K najbliższych sąsiadów (KNN), która zapewnia łączność grafu dla wszystkich regionów. Dla porównania liczymy też macierz odległości euklidesowej.
+Wyznaczamy trzy macierze wag: macierz sąsiedztwa I rzędu (Queen), macierz K najbliższych sąsiadów (KNN k=5) oraz macierz odległości euklidesowej.
 
 ## 3.1 Macierz Queen I rzędu
 
 ```{r weights-queen}
-# Macierz sasiedztwa Queen — region jest sasiadem jesli styka sie krawedzia
-# lub wierzcholkiem (jak ruch krolowej w szachach)
 nb.q1 <- poly2nb(nuts2_proj, queen = TRUE)
 summary(nb.q1)
 
-# Liczba regionow bez sasiadow (wyspy)
 n_islands <- sum(card(nb.q1) == 0)
 cat("Liczba regionów bez sąsiadów (wysp):", n_islands, "\n")
 cat("Wyspy:", nuts2_proj$NUTS_ID[card(nb.q1) == 0], "\n")
 
-# Macierz wag wierszowo-standaryzowana z zero.policy
-# (regiony bez sasiadow dostana zerowy wiersz)
 W.q1 <- nb2listw(nb.q1, style = "W", zero.policy = TRUE)
 ```
-
-Macierz sąsiedztwa Queen I rzędu identyfikuje 13 regionów wyspiarskich 
-bez sąsiadów: Cypr (CY00), Malta (MT00), Korsyka (FRM0), Sycylia (ITG1), 
-Sardynia (ITG2), Baleary (ES53), Chorwacja adriatycka (HR03), Ceuta (ES63), 
-Melilla (ES64) oraz cztery regiony wyspiarskie Grecji (EL41, EL42, EL43, 
-EL62). Są to jednocześnie jedne z najbardziej turystycznych regionów 
-w próbce. Z tego powodu macierz Queen nie będzie jedyną stosowaną 
-w analizie — dla zapewnienia pełnej łączności grafu wykorzystano 
-dodatkowo macierz KNN (k=5) oraz macierz odległości euklidesowej.
 
 ## 3.2 Macierz KNN (k=5)
 
 ```{r weights-knn}
-# Centroidy regionow
 coords <- st_coordinates(st_centroid(nuts2_proj, of_largest_polygon = TRUE))
 
-# Macierz K najblizszych sasiadow (k=5)
-# Kazdy region ma DOKLADNIE 5 sasiadow — wyspy tez
 nb.knn <- knn2nb(knearneigh(coords, k = 5), row.names = nuts2_proj$NUTS_ID)
 summary(nb.knn)
 
@@ -217,13 +158,11 @@ W.knn <- nb2listw(nb.knn, style = "W")
 ## 3.3 Macierz odległości euklidesowej
 
 ```{r weights-dist}
-# Minimalna odleglosc gwarantujaca >=1 sasiada dla wszystkich regionow
 knn1 <- knn2nb(knearneigh(coords, k = 1))
 all.linked <- max(unlist(nbdists(knn1, coords)))
-cat("Minimalna odleglosc dla pelnego polaczenia:", 
+cat("Minimalna odległość dla pełnego połączenia:",
     round(all.linked/1000, 0), "km\n")
 
-# Macierz dystansowa
 nb.dist <- dnearneigh(coords, 0, all.linked)
 summary(nb.dist)
 
@@ -232,30 +171,29 @@ W.dist <- nb2listw(nb.dist, style = "W")
 
 ## 3.4 Wizualizacja powiązań przestrzennych
 
-```{r plot-connections, fig.width=12, fig.height=10}
+```{r plot-connections, fig.width=14, fig.height=6}
 par(mfrow = c(1, 3), mar = c(1, 1, 2, 1))
 
 plot(st_geometry(nuts2_proj), border = "grey", main = "Queen (z zero.policy)")
-plot(nb.q1, coords, add = TRUE, col = "red", lwd = 0.5)
+plot(nb.q1, coords, add = TRUE, col = "red", lwd = 0.4)
 
 plot(st_geometry(nuts2_proj), border = "grey", main = "KNN k=5")
-plot(nb.knn, coords, add = TRUE, col = "red", lwd = 0.5)
+plot(nb.knn, coords, add = TRUE, col = "red", lwd = 0.4)
 
 plot(st_geometry(nuts2_proj), border = "grey", main = "Dystansowa")
-plot(nb.dist, coords, add = TRUE, col = "red", lwd = 0.5)
+plot(nb.dist, coords, add = TRUE, col = "red", lwd = 0.4)
 
 par(mfrow = c(1, 1))
 ```
 
+
 # 4. Globalna statystyka Morana I
 
-## 4.1 Moran I dla 2019 i 2023 (z różnymi macierzami)
+## 4.1 Moran I dla 2019 (z różnymi macierzami)
 
 ```{r moran-snapshots}
-# Funkcja pomocnicza: oblicz Moran I dla zmiennej w danym roku z dana macierza
 calc_moran <- function(year_, W, var = "ln_nights_per_1000pop") {
   d <- panel |> filter(year == year_)
-  # Upewniamy sie, ze kolejnosc danych zgadza sie z nuts2_proj
   d <- d[match(nuts2_proj$NUTS_ID, d$geo_id), ]
   moran.test(d[[var]], listw = W, zero.policy = TRUE)
 }
@@ -272,16 +210,12 @@ print(calc_moran(2019, W.dist))
 ## 4.2 Moran I dla każdego roku — ewolucja w czasie
 
 ```{r moran-time-evolution}
-# Glowna hipoteza projektu: czy autokorelacja przestrzenna zmienila sie po COVID?
-# Liczymy Moran I dla kazdego roku osobno (z macierza KNN jako bazowa).
-
 years <- 2017:2023
 moran_evolution <- sapply(years, function(y) {
   d <- panel |> filter(year == y)
   d <- d[match(nuts2_proj$NUTS_ID, d$geo_id), ]
   m <- moran.test(d$ln_nights_per_1000pop, listw = W.knn, zero.policy = TRUE)
-  c(I = m$estimate["Moran I statistic"],
-    pval = m$p.value)
+  c(I = m$estimate["Moran I statistic"], pval = m$p.value)
 })
 
 moran_df <- data.frame(
@@ -289,7 +223,6 @@ moran_df <- data.frame(
   moran_I = moran_evolution["I.Moran I statistic", ],
   p_value = moran_evolution["pval", ]
 )
-
 print(moran_df)
 ```
 
@@ -298,19 +231,18 @@ ggplot(moran_df, aes(x = year, y = moran_I)) +
   geom_line(linewidth = 1, color = "steelblue") +
   geom_point(size = 3, color = "steelblue") +
   geom_vline(xintercept = 2020, linetype = "dashed", color = "red") +
-  annotate("text", x = 2020.2, y = max(moran_df$moran_I), 
+  annotate("text", x = 2020.2, y = max(moran_df$moran_I),
            label = "COVID-19", hjust = 0, color = "red") +
   scale_x_continuous(breaks = years) +
   labs(
-    title = "Ewolucja globalnej statystyki Morana I, 2017–2023",
+    title = "Ewolucja globalnej statystyki Morana I, 2017-2023",
     subtitle = "Macierz wag: KNN k=5; zmienna: ln(noclegów/1000 mieszk.)",
-    x = "Rok",
-    y = "Moran I"
+    x = "Rok", y = "Moran I"
   ) +
   theme_minimal()
 ```
 
-## 4.3 Wykres rozproszenia Morana
+## 4.3 Wykresy rozproszenia Morana
 
 ```{r moran-scatter-2019, fig.width=7, fig.height=6}
 d2019 <- panel |> filter(year == 2019)
@@ -318,10 +250,8 @@ d2019 <- d2019[match(nuts2_proj$NUTS_ID, d2019$geo_id), ]
 
 moran.plot(d2019$ln_nights_per_1000pop, listw = W.knn,
            main = "Wykres rozproszenia Morana — 2019 (pre-COVID)",
-           xlab = "ln(noclegów/1000 mieszk.)",
-           ylab = "Spatial lag",
-           labels = as.character(d2019$geo_id),
-           zero.policy = TRUE)
+           xlab = "ln(noclegów/1000 mieszk.)", ylab = "Spatial lag",
+           labels = as.character(d2019$geo_id), zero.policy = TRUE)
 ```
 
 ```{r moran-scatter-2023, fig.width=7, fig.height=6}
@@ -330,11 +260,10 @@ d2023 <- d2023[match(nuts2_proj$NUTS_ID, d2023$geo_id), ]
 
 moran.plot(d2023$ln_nights_per_1000pop, listw = W.knn,
            main = "Wykres rozproszenia Morana — 2023 (post-COVID)",
-           xlab = "ln(noclegów/1000 mieszk.)",
-           ylab = "Spatial lag",
-           labels = as.character(d2023$geo_id),
-           zero.policy = TRUE)
+           xlab = "ln(noclegów/1000 mieszk.)", ylab = "Spatial lag",
+           labels = as.character(d2023$geo_id), zero.policy = TRUE)
 ```
+
 
 # 5. Lokalna statystyka Morana I (LISA)
 
@@ -342,10 +271,8 @@ moran.plot(d2023$ln_nights_per_1000pop, listw = W.knn,
 
 ```{r lisa-2019}
 local_moran_2019 <- localmoran(d2019$ln_nights_per_1000pop,
-                                listw = W.knn,
-                                zero.policy = TRUE)
+                                listw = W.knn, zero.policy = TRUE)
 
-# Dolaczamy do mapy
 map_2019$lmI <- local_moran_2019[, "Ii"]
 map_2019$lmZ <- local_moran_2019[, "Z.Ii"]
 map_2019$lmp <- local_moran_2019[, "Pr(z != E(Ii))"]
@@ -358,8 +285,7 @@ head(local_moran_2019)
 
 ```{r lisa-2023}
 local_moran_2023 <- localmoran(d2023$ln_nights_per_1000pop,
-                                listw = W.knn,
-                                zero.policy = TRUE)
+                                listw = W.knn, zero.policy = TRUE)
 
 map_2023$lmI <- local_moran_2023[, "Ii"]
 map_2023$lmZ <- local_moran_2023[, "Z.Ii"]
@@ -369,34 +295,112 @@ map_2023$LH  <- attr(local_moran_2023, "quadr")[, "mean"]
 head(local_moran_2023)
 ```
 
-## 5.3 Mapy klastrów LISA
+## 5.3 Mapy klastrów LISA (moran.cluster z bispdep)
 
 ```{r lisa-cluster-2019, fig.width=10, fig.height=8}
-# Mapa klastrow LISA — pokazuje High-High (hot spots), Low-Low (cold spots),
-# High-Low i Low-High (outliers)
-moran.cluster(d2019$ln_nights_per_1000pop, 
-              listw = W.knn, 
-              zero.policy = TRUE,
+moran.cluster(d2019$ln_nights_per_1000pop,
+              listw = W.knn, zero.policy = TRUE,
               st_geometry(nuts2_proj),
-              significant = TRUE, 
-              pleg = "topleft")
+              significant = TRUE, pleg = "topleft")
 title("Mapa klastrów LISA — 2019 (pre-COVID)")
 ```
 
 ```{r lisa-cluster-2023, fig.width=10, fig.height=8}
-moran.cluster(d2023$ln_nights_per_1000pop, 
-              listw = W.knn, 
-              zero.policy = TRUE,
+moran.cluster(d2023$ln_nights_per_1000pop,
+              listw = W.knn, zero.policy = TRUE,
               st_geometry(nuts2_proj),
-              significant = TRUE, 
-              pleg = "topleft")
+              significant = TRUE, pleg = "topleft")
 title("Mapa klastrów LISA — 2023 (post-COVID)")
 ```
 
-## 5.4 Mapy istotności LISA
+## 5.4 Mapy typu klastrów (High-High / Low-Low / outliers)
 
-```{r lisa-significance-2019, fig.width=10, fig.height=8}
-# Mapa p-value LISA — gdzie autokorelacja jest istotna statystycznie
+```{r lisa-cluster-type}
+map_2019 <- map_2019 |>
+  mutate(cluster_type = case_when(
+    lmp >= 0.05                     ~ "Nieistotny",
+    as.character(LH) == "High-High" ~ "High-High (hot spot)",
+    as.character(LH) == "Low-Low"   ~ "Low-Low (cold spot)",
+    as.character(LH) == "High-Low"  ~ "High-Low (outlier)",
+    as.character(LH) == "Low-High"  ~ "Low-High (outlier)",
+    TRUE                            ~ "Nieistotny"
+  ))
+
+map_2023 <- map_2023 |>
+  mutate(cluster_type = case_when(
+    lmp >= 0.05                     ~ "Nieistotny",
+    as.character(LH) == "High-High" ~ "High-High (hot spot)",
+    as.character(LH) == "Low-Low"   ~ "Low-Low (cold spot)",
+    as.character(LH) == "High-Low"  ~ "High-Low (outlier)",
+    as.character(LH) == "Low-High"  ~ "Low-High (outlier)",
+    TRUE                            ~ "Nieistotny"
+  ))
+
+cat("=== Klastry LISA 2019 ===\n")
+print(table(map_2019$cluster_type))
+cat("\n=== Klastry LISA 2023 ===\n")
+print(table(map_2023$cluster_type))
+```
+
+```{r lisa-cluster-map-2019, fig.width=10, fig.height=8}
+m_cl_2019 <- tm_shape(map_2019) +
+  tm_polygons(
+    fill = "cluster_type",
+    fill.scale = tm_scale_categorical(
+      values = c(
+        "High-High (hot spot)" = "#d7191c",
+        "Low-Low (cold spot)"  = "#2c7bb6",
+        "High-Low (outlier)"   = "#fdae61",
+        "Low-High (outlier)"   = "#abd9e9",
+        "Nieistotny"           = "grey90"
+      )
+    ),
+    fill.legend = tm_legend(title = "Typ klastra LISA"),
+    col = "white", lwd = 0.3
+  ) +
+  tm_layout(
+    legend.position = c("left", "top"),
+    legend.title.size = 0.8, legend.text.size = 0.7,
+    legend.bg.color = "white", legend.bg.alpha = 0.85,
+    legend.frame = TRUE
+  ) +
+  tm_title("Klastry LISA — 2019 (pre-COVID)")
+
+tmap_save(m_cl_2019, "lisa_clusters_2019.png", width = 10, height = 8, dpi = 300)
+m_cl_2019
+```
+
+```{r lisa-cluster-map-2023, fig.width=10, fig.height=8}
+m_cl_2023 <- tm_shape(map_2023) +
+  tm_polygons(
+    fill = "cluster_type",
+    fill.scale = tm_scale_categorical(
+      values = c(
+        "High-High (hot spot)" = "#d7191c",
+        "Low-Low (cold spot)"  = "#2c7bb6",
+        "High-Low (outlier)"   = "#fdae61",
+        "Low-High (outlier)"   = "#abd9e9",
+        "Nieistotny"           = "grey90"
+      )
+    ),
+    fill.legend = tm_legend(title = "Typ klastra LISA"),
+    col = "white", lwd = 0.3
+  ) +
+  tm_layout(
+    legend.position = c("left", "top"),
+    legend.title.size = 0.8, legend.text.size = 0.7,
+    legend.bg.color = "white", legend.bg.alpha = 0.85,
+    legend.frame = TRUE
+  ) +
+  tm_title("Klastry LISA — 2023 (post-COVID)")
+
+tmap_save(m_cl_2023, "lisa_clusters_2023.png", width = 10, height = 8, dpi = 300)
+m_cl_2023
+```
+
+## 5.5 Mapy istotności LISA
+
+```{r lisa-significance}
 map_2019 <- map_2019 |>
   mutate(sig_level = case_when(
     lmp < 0.01  ~ "p < 0.01",
@@ -405,24 +409,6 @@ map_2019 <- map_2019 |>
     TRUE        ~ "nieistotne"
   ))
 
-tm_shape(map_2019) +
-  tm_polygons(
-    fill = "sig_level",
-    fill.scale = tm_scale_categorical(
-      values = c("p < 0.01" = "#08306b",
-                 "p < 0.05" = "#2171b5",
-                 "p < 0.10" = "#6baed6",
-                 "nieistotne" = "grey90")
-    ),
-    fill.legend = tm_legend(title = "Istotność LISA"),
-    col = "white",
-    lwd = 0.3
-  ) +
-  tm_layout(legend.position = c("left", "top")) +
-  tm_title("Istotność lokalnej statystyki Morana — 2019")
-```
-
-```{r lisa-significance-2023, fig.width=10, fig.height=8}
 map_2023 <- map_2023 |>
   mutate(sig_level = case_when(
     lmp < 0.01  ~ "p < 0.01",
@@ -430,156 +416,141 @@ map_2023 <- map_2023 |>
     lmp < 0.10  ~ "p < 0.10",
     TRUE        ~ "nieistotne"
   ))
+```
 
-tm_shape(map_2023) +
+```{r lisa-sig-2019, fig.width=10, fig.height=8}
+m_sig_2019 <- tm_shape(map_2019) +
   tm_polygons(
     fill = "sig_level",
     fill.scale = tm_scale_categorical(
-      values = c("p < 0.01" = "#08306b",
-                 "p < 0.05" = "#2171b5",
-                 "p < 0.10" = "#6baed6",
-                 "nieistotne" = "grey90")
+      values = c("p < 0.01" = "#08306b", "p < 0.05" = "#2171b5",
+                 "p < 0.10" = "#6baed6", "nieistotne" = "grey90")
     ),
     fill.legend = tm_legend(title = "Istotność LISA"),
-    col = "white",
-    lwd = 0.3
+    col = "white", lwd = 0.3
+  ) +
+  tm_layout(legend.position = c("left", "top")) +
+  tm_title("Istotność lokalnej statystyki Morana — 2019")
+
+tmap_save(m_sig_2019, "lisa_sig_2019.png", width = 10, height = 8, dpi = 300)
+m_sig_2019
+```
+
+```{r lisa-sig-2023, fig.width=10, fig.height=8}
+m_sig_2023 <- tm_shape(map_2023) +
+  tm_polygons(
+    fill = "sig_level",
+    fill.scale = tm_scale_categorical(
+      values = c("p < 0.01" = "#08306b", "p < 0.05" = "#2171b5",
+                 "p < 0.10" = "#6baed6", "nieistotne" = "grey90")
+    ),
+    fill.legend = tm_legend(title = "Istotność LISA"),
+    col = "white", lwd = 0.3
   ) +
   tm_layout(legend.position = c("left", "top")) +
   tm_title("Istotność lokalnej statystyki Morana — 2023")
+
+tmap_save(m_sig_2023, "lisa_sig_2023.png", width = 10, height = 8, dpi = 300)
+m_sig_2023
 ```
+
 
 # 6. Wnioski z analizy przestrzennej
 
-```
-## 6. Wnioski z analizy przestrzennej
+## 6.1 Autokorelacja przestrzenna istnieje
 
-### 6.1 Autokorelacja przestrzenna istnieje
+Globalna statystyka Morana I jest istotna statystycznie we wszystkich badanych latach (p-value < 0.001), potwierdzając istnienie umiarkowanej, ale wysoce istotnej dodatniej autokorelacji przestrzennej intensywności turystyki w 220 regionach NUTS2 z 25 krajów UE.
 
-Globalna statystyka Morana I przyjmuje wartości z zakresu 0.29–0.38 
-(w zależności od macierzy wag i roku), przy p-value < 0.001 we wszystkich 
-przypadkach. Potwierdza to istnienie umiarkowanej, ale wysoce istotnej 
-dodatniej autokorelacji przestrzennej intensywności turystyki w regionach 
-UE. Regiony o wysokiej intensywności turystyki sąsiadują z regionami 
-o wysokiej intensywności, a regiony o niskiej — z regionami o niskiej.
+## 6.2 Porównanie macierzy wag
 
-### 6.2 Porównanie macierzy wag
+Wyniki są spójne między trzema macierzami wag, co świadczy o robustności wykrytej autokorelacji. Jako główną macierz wag do dalszego modelowania wybrano KNN k=5, ponieważ: (a) zapewnia pełną łączność grafu — wszystkie 220 regionów mają dokładnie 5 sąsiadów, w tym regiony wyspiarskie, które w macierzy Queen nie miałyby żadnych sąsiadów; (b) każdy region ma identyczną liczbę sąsiadów, co eliminuje problem nierównomierności macierzy dystansowej.
 
-Wyniki są spójne między trzema macierzami wag:
-- Queen I rzędu: Moran I = 0.296 (2019), p = 2.9e-07
-- KNN k=5: Moran I = 0.338 (2019), p = 4.1e-15
-- Dystansowa (próg 492 km): Moran I = 0.287 (2019), p < 2.2e-16
+## 6.3 Ewolucja autokorelacji w czasie (pre vs post-COVID)
 
-Jako główną macierz wag do dalszego modelowania wybrano KNN k=5, 
-ponieważ: (a) zapewnia pełną łączność grafu — wszystkie 173 regiony 
-mają dokładnie 5 sąsiadów, w tym 13 regionów wyspiarskich, które 
-w macierzy Queen nie miałyby żadnych sąsiadów; (b) każdy region ma 
-identyczną liczbę sąsiadów, co eliminuje problem nierównomierności 
-macierzy dystansowej (1–39 sąsiadów).
+Analiza ewolucji globalnej statystyki Morana I w latach 2017–2023 ujawnia istotny wzorzec. W okresie pre-COVID (2017–2019) obserwujemy stopniowy spadek autokorelacji, sugerujący powolną dywersyfikację przestrzenną turystyki. Szok pandemiczny (2020–2021) przyniósł gwałtowny wzrost — najwyższe wartości Morana I w całym badanym okresie. Pandemia nie "rozlała" turystyki z przepełnionych destynacji do sąsiednich regionów, lecz przeciwnie — skoncentrowała ją w regionach tradycyjnie turystycznych. Interpretacja: dominacja turystyki krajowej i krótkodystansowej, która kierowała się do znanych, sprawdzonych destynacji.
 
-### 6.3 Ewolucja autokorelacji w czasie (pre vs post-COVID)
+W latach 2022–2023 autokorelacja ustabilizowała się na poziomie wyższym niż przed pandemią, co sugeruje trwałą zmianę struktury przestrzennej europejskiej turystyki.
 
-Analiza ewolucji globalnej statystyki Morana I w latach 2017–2023 
-ujawnia istotny wzorzec:
-- Pre-COVID (2017–2019): stopniowy spadek autokorelacji z 0.357 do 0.338, 
-  sugerujący powolną dywersyfikację przestrzenną turystyki.
-- Szok pandemiczny (2020–2021): gwałtowny wzrost do 0.375–0.377 — 
-  najwyższe wartości w całym badanym okresie. Pandemia nie "rozlała" 
-  turystyki z przepełnionych destynacji do sąsiednich regionów, lecz 
-  przeciwnie — skoncentrowała ją w regionach tradycyjnie turystycznych. 
-  Interpretacja: dominacja turystyki krajowej i krótkodystansowej, 
-  która kierowała się do znanych, sprawdzonych destynacji.
-- Post-COVID (2022–2023): stabilizacja na poziomie 0.359–0.363, wyższym 
-  niż przed pandemią (0.338 w 2019). Sugeruje to trwałą zmianę struktury 
-  przestrzennej europejskiej turystyki — pandemia mogła na stałe wzmocnić 
-  koncentrację ruchu turystycznego.
+Wbrew wstępnej hipotezie o przestrzennej redystrybucji turystyki po pandemii, wyniki wskazują na efekt odwrotny — pogłębienie koncentracji przestrzennej. Jest to ciekawszy wynik niż potwierdzenie hipotezy, gdyż sugeruje mechanizm "ucieczki do bezpieczeństwa" (flight to safety) w turystyce — analogiczny do zachowań na rynkach finansowych.
 
-Wbrew wstępnej hipotezie o przestrzennej redystrybucji turystyki po 
-pandemii, wyniki wskazują na efekt odwrotny — pogłębienie koncentracji 
-przestrzennej. Jest to ciekawszy wynik niż potwierdzenie hipotezy, 
-gdyż sugeruje mechanizm "ucieczki do bezpieczeństwa" (flight to safety) 
-w turystyce — analogiczny do zachowań na rynkach finansowych.
-
-### 6.4 Klastry LISA
+## 6.4 Klastry LISA
 
 Lokalna statystyka Morana I identyfikuje dwa główne typy klastrów:
-- **Cold spots (Low-Low)**: Europa Środkowo-Wschodnia — wschodnia Polska, 
-  Czechy, Słowacja, Węgry, Rumunia i Bułgaria. Regiony te tworzą zwarty 
-  obszar niskiej intensywności turystyki. Klaster ten jest najbardziej 
-  wyrazisty statystycznie (kilka regionów z p < 0.001).
-- **Hot spots (High-High)**: Grecja (wyspy Egejskie, Kreta, Wyspy Jońskie), 
-  Cypr (Ii = 2.02, p = 0.002), południowe Włochy, Chorwacja adriatycka. 
-  Klaster śródziemnomorski tworzony przez regiony wyspiarskie i nadmorskie.
-- **Outliers**: Algarve (PT15) i Zeeland (NL34) jako regiony High-Low — 
-  wysoko turystyczne w słabo turystycznym otoczeniu. Grecja zachodnia 
-  (EL53) jako Low-High — niższa intensywność w mocnym otoczeniu wyspiarskim.
 
-Porównanie 2019 vs 2023 pokazuje wzrost liczby regionów z istotną 
-lokalną autokorelacją (z 30 do 35), co potwierdza globalny trend 
-wzmocnienia struktur przestrzennych po pandemii.
+- **Cold spots (Low-Low)**: Europa Środkowo-Wschodnia — wschodnia Polska, Czechy, Słowacja, Węgry, Rumunia i Bułgaria, a po dodaniu Niemiec do panelu — potencjalnie wschodnie landy (Brandenburgia, Saksonia-Anhalt, Meklemburgia). Regiony te tworzą zwarty obszar niskiej intensywności turystyki.
 
-### 6.5 Konsekwencje dla modelowania
+- **Hot spots (High-High)**: Grecja (wyspy Egejskie, Kreta, Wyspy Jońskie), Cypr, południowe Włochy, Chorwacja adriatycka, oraz regiony alpejskie (Tyrol, Bawaria). Klaster śródziemnomorski i alpejski tworzony przez regiony wyspiarskie, nadmorskie i górskie.
 
-Istotna autokorelacja przestrzenna (Moran I ≈ 0.34, p < 0.001) oznacza, 
-że klasyczny model OLS będzie obciążony i nieefektywny. Reszty modelu 
-OLS będą wykazywać zależności przestrzenne, naruszając założenie o 
-niezależności składników losowych. Konieczne jest zastosowanie modeli 
-regresji przestrzennej (SAR, SEM, SARAR lub SDM) uwzględniających 
-interakcje przestrzenne, co zostanie przeprowadzone w następnej części 
-analizy.
-```
+- **Outliers**: Algarve (PT15) jako High-Low — wysoko turystyczne w słabo turystycznym otoczeniu. Grecja zachodnia jako Low-High — niższa intensywność w mocnym otoczeniu wyspiarskim.
+
+## 6.5 Konsekwencje dla modelowania
+
+Istotna autokorelacja przestrzenna oznacza, że klasyczny model OLS będzie obciążony i nieefektywny. Reszty modelu OLS będą wykazywać zależności przestrzenne, naruszając założenie o niezależności składników losowych. Konieczne jest zastosowanie modeli regresji przestrzennej (SAR, SEM, SARAR lub SDM) uwzględniających interakcje przestrzenne, co zostanie przeprowadzone w następnej części analizy.
 
 ```{r}
-library(car)  # dla VIF
+library(car)
+library(dplyr)
 
-# Weźmy jeden rok (2019) żeby szybko sprawdzić na cross-section
+panel <- readRDS("panel_final.rds")
 d <- panel |> filter(year == 2019)
 
-# Model PEŁNY — wszystkie kandydatki na zmienne
-model_full <- lm(ln_nights_per_1000pop ~ ln_pop_density + 
+# --- 1. Macierz korelacji ---
+cat("=== MACIERZ KORELACJI ===\n")
+d |>
+  select(ln_gdp_pc, ln_pop_density, ln_wage_per_capita,
+         tertiary_edu, unesco_count, coast, area_km2) |>
+  cor(use = "complete.obs") |>
+  round(2) |>
+  print()
+
+# --- 2. Model pełny (wszystkie kandydatki) ---
+cat("\n=== MODEL PEŁNY ===\n")
+model_full <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density + 
                  ln_wage_per_capita + tertiary_edu + unesco_count + 
-                 coast + ln_gdp_pc + area_km2, 
-                 data = d)
-
+                 coast + area_km2, data = d)
 summary(model_full)
+cat("\nVIF:\n")
+print(vif(model_full))
 
-# VIF — wartości > 5 to problem, > 10 to poważny problem
-vif(model_full)
-```
-
-```{r}
-model_reduced <- lm(ln_nights_per_1000pop ~ ln_pop_density + 
+# --- 3. Model bez area_km2 ---
+cat("\n=== MODEL BEZ AREA_KM2 ===\n")
+model_no_area <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density + 
                     ln_wage_per_capita + tertiary_edu + unesco_count + 
-                    coast,
+                    coast, data = d)
+summary(model_no_area)
+cat("\nVIF:\n")
+print(vif(model_no_area))
+
+# --- 4. Model bez wage (tylko gdp) ---
+cat("\n=== MODEL BEZ WAGE (tylko GDP) ===\n")
+model_no_wage <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density + 
+                    tertiary_edu + unesco_count + coast + area_km2, 
                     data = d)
+summary(model_no_wage)
+cat("\nVIF:\n")
+print(vif(model_no_wage))
 
-summary(model_reduced)
-vif(model_reduced)
+# --- 5. Model bez gdp (tylko wage) ---
+cat("\n=== MODEL BEZ GDP (tylko WAGE) ===\n")
+model_no_gdp <- lm(ln_nights_per_1000pop ~ ln_pop_density + 
+                   ln_wage_per_capita + tertiary_edu + unesco_count + 
+                   coast + area_km2, data = d)
+summary(model_no_gdp)
+cat("\nVIF:\n")
+print(vif(model_no_gdp))
+
+# --- 6. Porównanie AIC ---
+cat("\n=== PORÓWNANIE AIC ===\n")
+print(AIC(model_full, model_no_area, model_no_wage, model_no_gdp))
+cat("\n=== PORÓWNANIE BIC ===\n")
+print(BIC(model_full, model_no_area, model_no_wage, model_no_gdp))
 ```
 
-```{r}
-model_alt <- lm(ln_nights_per_1000pop ~ ln_pop_density +
-                ln_gdp_pc + tertiary_edu + unesco_count + coast,
-                data = d)
-
-summary(model_alt)
-vif(model_alt)
-```
-
-```{r}
-model_A <- lm(ln_nights_per_1000pop ~ ln_pop_density + 
-              ln_wage_per_capita + tertiary_edu + unesco_count + 
-              coast + ln_gdp_pc + area_km2, data = d)
-summary(model_A)
-vif(model_A)
-```
-
-```{r}
-model_B <- lm(ln_nights_per_1000pop ~ ln_pop_density + 
-              ln_gdp_pc + tertiary_edu + unesco_count + coast, 
-              data = d)
-summary(model_B)
-vif(model_B)
-```
-
+#### UWAGA
+ Finalny model chyba: ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density + 
+                        tertiary_edu + unesco_count + 
+                        coast + area_km2
+                        
+### DO SPRAWDZENIA!
 
 
