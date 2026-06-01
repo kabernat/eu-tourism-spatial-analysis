@@ -70,7 +70,7 @@ Wybór zmiennych objaśniających opiera się na modelach popytu turystycznego i
 
 **Dostęp do wybrzeża (`coast`)** to zmienna zero-jedynkowa odzwierciedlająca atrakcyjność nadmorską. Turystyka plażowa jest dominującym segmentem europejskiej turystyki zagranicznej (Alegre i Pou, 2006). Oczekiwany znak: **dodatni**.
 
-**Powierzchnia regionu (`area_km2`)** jest kontrolą rozmiaru geograficznego. Większe regiony mają zazwyczaj niższą intensywność turystyczną przy tej samej liczbie noclegów, bo infrastruktura jest bardziej rozproszona. Oczekiwany znak: **ujemny**.
+**Powierzchnia regionu (`ln_area_km2`)** jest kontrolą rozmiaru geograficznego. Transformacja logarytmiczna jest uzasadniona silną prawoskośnością rozkładu `area_km2` (zakres od 8 do 225 400 km²) i zapewnia spójność z pozostałymi zmiennymi ciągłymi w modelu. Większe regiony mają zazwyczaj niższą intensywność turystyczną przy tej samej liczbie noclegów, bo infrastruktura jest bardziej rozproszona. Oczekiwany znak: **ujemny**.
 
 ### Podsumowanie oczekiwanych znaków
 
@@ -80,7 +80,7 @@ Wybór zmiennych objaśniających opiera się na modelach popytu turystycznego i
 | `ln_pop_density` | − | Eugenio-Martin i in. (2004) |
 | `unesco_count` | + | Yang i in. (2010), Patuelli i in. (2013) |
 | `coast` | + | Alegre i Pou (2006) |
-| `area_km2` | − | Hipoteza rozproszenia geograficznego |
+| `ln_area_km2` | − | Hipoteza rozproszenia geograficznego |
 
 ### Literatura
 
@@ -133,8 +133,6 @@ Liczba regionów w panelu: <strong>`r n_panel`</strong> &nbsp;|&nbsp; Liczba reg
 Brak ryzyka utraty obserwacji przy operacji <code>left_join</code> w kolejnych krokach.
 </div>
 
-Weryfikacja potwierdza pełną spójność: 220 regionów w panelu odpowiada 220 regionom w mapie, a zbiory identyfikatorów są identyczne (`TRUE`). Nie ma ryzyka utraty obserwacji przy operacji `left_join` w kolejnych krokach.
-
 ## 1.3 Reprojekcja geometrii
 
 ```{r reproject}
@@ -143,6 +141,7 @@ Weryfikacja potwierdza pełną spójność: 220 regionów w panelu odpowiada 220
 # macierzy wag opartych na odległościach i sąsiedztwie wielokątów.
 # Bez reprojekcji z WGS84 obliczane odległości i centroidy byłyby zniekształcone.
 nuts2_proj <- st_transform(nuts2, 3035)
+panel$ln_area_km2 <- log(panel$area_km2)
 ```
 
 ---
@@ -308,7 +307,7 @@ knn_sensitivity_df |>
   row_spec(2, bold = TRUE, background = "#d4edda")
 ```
 
-**Wniosek:** Moran I maleje monotonicznie wraz z k — od 0,389 przy k=3 do 0,293 przy k=15. Jest to oczekiwane zjawisko: im więcej sąsiadów, tym bardziej lokalna struktura przestrzenna zostaje rozmyta przez odleglejsze regiony. Wartość k=3 generuje zbyt rzadką sieć (660 powiązań) przy N=220 regionów. Wartość k=5 stanowi optymalny kompromis — zapewnia dostateczną gęstość sieci (1100 powiązań), jednorodność struktury i najwyższe I spośród wartości niezagrożonych problemem rzadkości. Wyniki są wysoce istotne dla wszystkich badanych k (p < 10⁻¹⁴), co potwierdza że autokorelacja przestrzenna nie jest artefaktem konkretnej wartości k.
+**Wniosek:** Moran I spada wraz ze wzrostem k, od 0,389 przy k=3 do 0,293 przy k=15. Wynika to z tego, że im więcej sąsiadów, tym bardziej lokalna struktura przestrzenna jest rozmyta. k=3 daje zbyt rzadką sieć przy N=220 regionów, a k=5 zapewnia dobry balans między gęstością sieci a jakością sygnału. Wyniki są istotne dla wszystkich badanych k (p < 10⁻¹⁴), więc autokorelacja nie jest efektem konkretnej wartości k.
 
 ## 3.3 Macierz odległości euklidesowej
 
@@ -350,7 +349,7 @@ data.frame(
 
 ## 3.5 Wizualizacja powiązań przestrzennych
 
-Poniższy wykres ilustruje graficznie strukturę każdej z trzech macierzy — linie łączą centroidy regionów uznanych za sąsiadów.
+Poniższy wykres ilustruje graficznie strukturę każdej z trzech macierzy. Linie łączą centroidy regionów uznanych za sąsiadów.
 
 ```{r plot-connections, fig.width=14, fig.height=6}
 # Wizualizacja sieci sąsiedztwa dla porównania gęstości i zasięgu połączeń
@@ -412,8 +411,6 @@ data.frame(
 <div class="result-box">
 🔍 <strong>Wniosek:</strong> Wszystkie trzy macierze potwierdzają <strong>wysoce istotną dodatnią autokorelację przestrzenną</strong> (p < 0,001). KNN k=5 daje najwyższe I (ok. 0,378). Wyniki są spójne niezależnie od specyfikacji sąsiedztwa.
 </div>
-
-**Wniosek:** Wszystkie trzy macierze potwierdzają istotną dodatnią autokorelację przestrzenną w 2019 roku (p < 0,001). KNN k=5 daje najwyższe I (ok. 0,378), bo nie wyklucza regionów wyspiarskich jak macierz Queen i nie rozcieńcza sieci jak macierz dystansowa. Spójność wyników dla trzech różnych macierzy wag potwierdza, że autokorelacja nie jest efektem konkretnej specyfikacji sąsiedztwa.
 
 ## 4.2 Ewolucja Morana I w czasie (2017–2023)
 
@@ -514,37 +511,28 @@ Lokalna statystyka Morana I rozkłada globalną autokorelację na wkład poszcze
 - **Cold spots (Low-Low):** region o niskiej wartości otoczony przez podobne
 - **Outliery High-Low / Low-High:** regiony wyraźnie różniące się od otoczenia
 
-## 5.1 LISA dla 2019
-
-```{r lisa-2019}
+```{r lisa-obliczenia, results='hide'}
 # localmoran() oblicza dla każdego regionu: lokalną statystykę I_i,
 # jej wartość oczekiwaną, wariancję, standaryzowany dewiat Z oraz p-value.
 # Argument quadr (ćwiartka na wykresie Morana) wyznacza typ klastra.
 local_moran_2019 <- localmoran(d2019$ln_nights_per_1000pop,
                                 listw = W.knn, zero.policy = TRUE)
+local_moran_2023 <- localmoran(d2023$ln_nights_per_1000pop,
+                                listw = W.knn, zero.policy = TRUE)
 
-# Dołączamy wyniki LISA do obiektu mapy
+# Dołączamy wyniki LISA do obiektów mapy
 map_2019$lmI <- local_moran_2019[, "Ii"]
 map_2019$lmZ <- local_moran_2019[, "Z.Ii"]
 map_2019$lmp <- local_moran_2019[, "Pr(z != E(Ii))"]
 map_2019$LH  <- attr(local_moran_2019, "quadr")[, "mean"]
 
-```
-
-## 5.2 LISA dla 2023
-
-```{r lisa-2023}
-local_moran_2023 <- localmoran(d2023$ln_nights_per_1000pop,
-                                listw = W.knn, zero.policy = TRUE)
-
 map_2023$lmI <- local_moran_2023[, "Ii"]
 map_2023$lmZ <- local_moran_2023[, "Z.Ii"]
 map_2023$lmp <- local_moran_2023[, "Pr(z != E(Ii))"]
 map_2023$LH  <- attr(local_moran_2023, "quadr")[, "mean"]
-
 ```
 
-## 5.3 Mapy typu klastrów (High-High / Low-Low / outliers)
+## 5.1 Mapy typu klastrów (High-High / Low-Low / outliers)
 
 Region jest klasyfikowany jako istotny klaster jeśli p < 0,05 (standardowy próg w analizie LISA).
 
@@ -654,7 +642,7 @@ tmap_save(m_cl_2023, "lisa_clusters_2023.png", width = 10, height = 8, dpi = 300
 m_cl_2023
 ```
 
-## 5.4 Mapy istotności LISA
+## 5.2 Mapy istotności LISA
 
 Mapy istotności pokazują poziom ufności lokalnej statystyki Morana I dla każdego regionu.
 
@@ -723,16 +711,11 @@ Globalna statystyka Morana I jest wysoce istotna we wszystkich 7 badanych latach
 
 ## 6.2 Uzasadnienie wyboru macierzy KNN k=5 jako głównej
 
-Jako główną macierz wag wybrano **KNN k=5** z następujących powodów:
-
-- Wszystkie 220 regionów ma 5 sąsiadów. Macierz Queen wyklucza 13 regionów wyspiarskich, które są jednocześnie najważniejszymi hot spotami turystycznymi, co zaniżałoby wyniki.
-- Każdy region ma identyczną liczbę powiązań, co zapewnia jednorodność struktury nieobecną w macierzy dystansowej.
-- Macierz KNN daje najwyższe I (0,378 w 2019), wolne od zniekształceń obecnych w pozostałych macierzach.
-- **Wybór k=5 uzasadniono analizą wrażliwości** (sekcja 3.2): Moran I maleje monotonicznie z k (od 0,389 przy k=3 do 0,293 przy k=15), wyniki są istotne dla wszystkich badanych k (p < 10⁻¹⁴). k=5 stanowi kompromis między lokalną reprezentatywnością sąsiedztwa a stabilnością estymowanej autokorelacji, zgodnie ze standardową praktyką w literaturze dla danych NUTS2.
+Jako główną macierz wag wybrano **KNN k=5** z kilku powodów. Po pierwsze, każdy region ma dokładnie 5 sąsiadów, co eliminuje problem wysp (macierz Queen wyklucza 13 regionów wyspiarskich będących kluczowymi hot spotami turystycznymi). Po drugie, jednakowa liczba powiązań dla każdego regionu zapewnia porównywalność. Po trzecie, wyniki analizy wrażliwości (sekcja 3.2) pokazują, że k=5 daje najwyższe Moran I spośród wartości, które nie generują zbyt rzadkiej sieci.
 
 ## 6.3 Ewolucja autokorelacji — wpływ COVID-19
 
-W latach 2017-2019 autokorelacja stopniowo malała (z 0,395 do 0,378), co może sugerować powolną dywersyfikację turystyki. W 2020 roku gwałtownie wzrosła do 0,427, bo turyści podczas pandemii wybierali znane, sprawdzone destynacje zamiast eksplorować nowe miejsca. Po pandemii (2022-2023) wartość wróciła do ok. 0,396.
+W latach 2017-2019 autokorelacja stopniowo malała (z 0,395 do 0,378), co może sugerować powolną dywersyfikację turystyki. W 2020 roku gwałtownie wzrosła do 0,427, bo turyści podczas pandemii wybierali znane, sprawdzone destynacje zamiast eksplorować nowe miejsca. W 2021 roku wartość pozostawała podwyższona (0,403), dopiero w latach 2022-2023 stabilizując się na poziomie ok. 0,396, zbliżonym do wartości sprzed pandemii, choć powrót nie był natychmiastowy.
 
 ## 6.4 Klastry LISA — identyfikacja obszarów koncentracji
 
@@ -740,7 +723,7 @@ Analiza LISA identyfikuje 45 regionów tworzących istotne klastry (α = 0,05) z
 
 - **Hot spots (High-High):** 14 regionów w 2019 i 13 w 2023, skupione w dwóch obszarach: klaster alpejski (Austria, północno-wschodnie Włochy, Bawaria) i klaster śródziemnomorski (Cypr, Sardynia, Wyspy Egejskie Południowe). Jedyna zmiana między latami to wypadnięcie Styrii (AT22) z klastra w 2023.
 
-- **Outliery:** 4 stabilne regiony. High-Low: Bruksela, Budapeszt i Warna. Low-High: Epir (zachodnia Grecja, niska intensywność w silnym otoczeniu wyspiarskim).
+- **Outliery:** 4 stabilne regiony. High-Low: Bruksela, Budapeszt i Warna. Low-High: Wyspy Egejskie Północne (EL53, niska intensywność w silnym otoczeniu wyspiarskim).
 
 - **Cold spots (Low-Low):** 27 regionów w 2019 i 28 w 2023. Największy obszar tworzą regiony polskie (13 regionów, praktycznie cały kraj poza wybrzeżem) i rumuńskie (8 regionów). W 2023 pojawiły się dwa nowe cold spoty: CZ07 (Střední Morava) i CZ08 (Moravskoslezsko), natomiast BE35 (Prowincja Luksemburg belgijski) wypadła z klastra cold spot.
 
@@ -760,10 +743,11 @@ Sprawdzamy macierz korelacji zmiennych kandydujących, szacujemy kilka wariantó
 
 ```{r ols-selekcja, results='hide'}
 panel <- readRDS("panel_final.rds")
+panel$ln_area_km2 <- log(panel$area_km2)
 d <- panel |> filter(year == 2019)
 cor_matrix <- d |>
   select(ln_gdp_pc, ln_pop_density, ln_wage_per_capita,
-         tertiary_edu, unesco_count, coast, area_km2) |>
+         tertiary_edu, unesco_count, coast, ln_area_km2) |>
   cor(use = "complete.obs") |>
   round(2)
 ```
@@ -784,9 +768,9 @@ cor_matrix |>
 # --- 2. Model pełny — wyłącznie diagnostyczny, oczekiwany VIF >> 10 ---
 model_full <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
                  ln_wage_per_capita + tertiary_edu + unesco_count +
-                 coast + area_km2, data = d)
+                 coast + ln_area_km2, data = d)
 
-# --- 3. Model bez area_km2 (alternatywa) ---
+# --- 3. Model bez ln_area_km2 (alternatywa) ---
 # UWAGA: model ten nadal zawiera obie zmienne zamożności (ln_gdp_pc i ln_wage_per_capita)
 # — oczekiwany VIF >> 10, model diagnostyczny pokazujący efekt sign reversal
 model_no_area <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
@@ -795,13 +779,13 @@ model_no_area <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
 
 # --- 4. Model z GDP, bez wage ---
 model_no_wage <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-                    tertiary_edu + unesco_count + coast + area_km2,
+                    tertiary_edu + unesco_count + coast + ln_area_km2,
                     data = d)
 
 # --- 5. Model z wage, bez GDP ---
 model_no_gdp <- lm(ln_nights_per_1000pop ~ ln_pop_density +
                    ln_wage_per_capita + tertiary_edu + unesco_count +
-                   coast + area_km2, data = d)
+                   coast + ln_area_km2, data = d)
 
 # --- 6. Porównanie kryteriów informacyjnych ---
 aic_vals <- AIC(model_full, model_no_area, model_no_wage, model_no_gdp)
@@ -812,7 +796,7 @@ vif_no_gdp_max  <- max(vif(model_no_gdp))
 
 ```{r model-comparison-table, echo=FALSE}
 data.frame(
-  Model       = c("Pełny (diagnostyczny)","Bez area_km2 (diagn.)","Z GDP, bez wage ⭐","Z wage, bez GDP"),
+  Model       = c("Pełny (diagnostyczny)","Bez ln_area_km2 (diagn.)","Z GDP, bez wage ⭐","Z wage, bez GDP"),
   `R²adj`= c(round(summary(model_full)$adj.r.squared,3),
                    round(summary(model_no_area)$adj.r.squared,3),
                    round(summary(model_no_wage)$adj.r.squared,3),
@@ -832,19 +816,19 @@ data.frame(
 ```
 
 <div class="result-box">
-📊 <strong>Wniosek:</strong> Modele pełny i bez <code>area_km2</code> są nieużywalne (VIF ok. 38, odwrócone znaki). Spośród poprawnych modeli <code>model_no_wage</code> ma najniższe BIC i AIC. Zmienna <code>tertiary_edu</code> okazała się nieistotna (p > 0,20) i zostaje usunięta w modelu finalnym.
+📊 <strong>Wniosek:</strong> Modele pełny i bez <code>ln_area_km2</code> są nieużywalne (VIF ok. 38, odwrócone znaki). Spośród poprawnych modeli <code>model_no_wage</code> ma najniższe BIC i AIC. Zmienna <code>tertiary_edu</code> okazała się nieistotna (p > 0,20) i zostaje usunięta w modelu finalnym.
 </div>
 
 **Wniosek z diagnostyki modeli:**
 
-Modele zawierające jednocześnie `ln_gdp_pc` i `ln_wage_per_capita` są nieużywalne (VIF ok. 38). Symptomem jest tzw. *sign reversal*: `ln_wage_per_capita` ma w tych modelach ujemny znak, co jest ekonomicznie absurdalne. Spośród modeli bez multikoliniearności (VIF < 2) najlepszy jest `model_no_wage` (najniższe BIC i AIC). Zmienna `tertiary_edu` jest w nim nieistotna, bo jej informację przejmuje `area_km2`, dlatego usuwamy ją w modelu finalnym.
+Modele zawierające jednocześnie `ln_gdp_pc` i `ln_wage_per_capita` są nieużywalne (VIF ok. 38). Symptomem jest tzw. *sign reversal*: `ln_wage_per_capita` ma w tych modelach ujemny znak, co jest ekonomicznie absurdalne. Spośród modeli bez multikoliniearności (VIF < 2) najlepszy jest `model_no_wage` (najniższe BIC i AIC). Zmienna `tertiary_edu` jest w nim nieistotna, bo jej informację przejmuje `ln_area_km2`, dlatego usuwamy ją w modelu finalnym.
 
 ```{r ols-finalny, results='hide'}
 # Dane muszą być w kolejności zgodnej z macierzą W.knn (kolejność nuts2_proj$NUTS_ID)
 # przed wywołaniem moran.test — bez tego test przypisuje reszty do błędnych regionów
 d <- d[match(nuts2_proj$NUTS_ID, d$geo_id), ]
 model_final <- lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-                  unesco_count + coast + area_km2, data = d)
+                  unesco_count + coast + ln_area_km2, data = d)
 sm_final     <- summary(model_final)
 vif_final    <- vif(model_final)
 moran_resid  <- moran.test(residuals(model_final), listw = W.knn, zero.policy = TRUE)
@@ -855,7 +839,7 @@ bp_test      <- bptest(model_final)
 
 ```{r final-coef-table, echo=FALSE}
 coef_df <- as.data.frame(sm_final$coefficients)[-1, ]
-vars    <- c("ln_gdp_pc","ln_pop_density","unesco_count","coast","area_km2")
+vars    <- c("ln_gdp_pc","ln_pop_density","unesco_count","coast","ln_area_km2")
 data.frame(
   Zmienna      = vars,
   `Oczek.`     = c("+","−","+","+","−"),
@@ -883,7 +867,7 @@ data.frame(
     round(sm_final$adj.r.squared,3),
     paste0("F=",round(sm_final$fstatistic[1],2),", p < 2.33e-16"),
     paste0("F=1.565, p=",round(ftest$`Pr(>F)`[2],3)),
-    paste0("I=",round(moran_resid$estimate[1],4),", p=",round(moran_resid$p.value,3)),
+    paste0("I=",round(moran_resid$estimate[1],4),", p=",formatC(moran_resid$p.value,format="e",digits=2)),
     paste0("W=",round(sw_test$statistic,4),", p=",formatC(sw_test$p.value,format="e",digits=2)),
     paste0("BP=",round(bp_test$statistic,3),", df=",bp_test$parameter,
            ", p=",formatC(bp_test$p.value,format="e",digits=2))
@@ -892,7 +876,7 @@ data.frame(
     "Model wyjaśnia ok. 30% zmienności ✅",
     "Model istotny jako całość ✅",
     "Usunięcie tertiary_edu uzasadnione (p > 0,05) ✅",
-    "Brak autokorelacji przestrzennej reszt ✅",
+    "Istotna autokorelacja przestrzenna reszt ⚠️",
     "Formalne odchylenie od normalności — przy n=220 bez wpływu na OLS ⚠️",
     "Istotna heteroskedastyczność reszt ⚠️"
   ),
@@ -907,19 +891,19 @@ data.frame(
 
 **Interpretacja modelu finalnego:**
 
-Model finalny to: `ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density + unesco_count + coast + area_km2`. Usunięcie `tertiary_edu` potwierdzono testem F (F = 1,565, p = 0,212). Wszystkie zmienne są istotne (p < 0,01), VIF < 2. Znaki współczynników są zgodne z oczekiwaniami z sekcji 0.2:
+Model finalny to: `ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density + unesco_count + coast + ln_area_km2`. Usunięcie `tertiary_edu` potwierdzono testem F (F = 1,565, p = 0,212). Wszystkie zmienne są istotne (p < 0,01), VIF < 2. Znaki współczynników są zgodne z oczekiwaniami z sekcji 0.2:
 
 - `ln_gdp_pc` (+): bogatsze regiony mają wyższą intensywność turystyczną
 - `ln_pop_density` (−): regiony metropolitalne mają niższą intensywność, bo ich mieszkańcy wyjeżdżają poza region
 - `unesco_count` (+): obiekty UNESCO przyciągają turystów
 - `coast` (+): dostęp do morza zwiększa intensywność
-- `area_km2` (−): większe regiony mają niższą intensywność
+- `ln_area_km2` (−): większe regiony mają niższą intensywność turystyczną
 
 <div class="info-box">
 ℹ️ <strong>Diagnostyka reszt:</strong><br>
-<strong>Autokorelacja przestrzenna:</strong> I = `r round(moran_resid$estimate[1],4)`, p = `r formatC(moran_resid$p.value,format="e",digits=2)` — reszty wykazują istotną autokorelację przestrzenną. Silna autokorelacja zmiennej objaśnianej (I ok. 0,38–0,43) uzasadnia zastosowanie modeli przestrzennych.<br><br>
-<strong>Normalność:</strong> p = `r formatC(sw_test$p.value,format="e",digits=2)` — formalne odchylenie, ale przy n = 220 nie ma to praktycznego znaczenia dla OLS.<br><br>
-<strong>Heteroskedastyczność:</strong> BP = `r round(bp_test$statistic,3)`, p = `r formatC(bp_test$p.value,format="e",digits=2)` — istotna heteroskedastyczność reszt, typowa dla danych regionalnych. Modele przestrzenne SAR-RE szacowane przez MNW są na nią asymptotycznie odporne.
+<strong>Autokorelacja przestrzenna:</strong> I = `r round(moran_resid$estimate[1],4)`, p = `r formatC(moran_resid$p.value,format="e",digits=2)` — reszty wykazują istotną autokorelację, co uzasadnia zastosowanie modeli przestrzennych.<br><br>
+<strong>Normalność:</strong> p = `r formatC(sw_test$p.value,format="e",digits=2)` — odrzucamy normalność, ale przy n = 220 nie ma to praktycznego znaczenia dla OLS.<br><br>
+<strong>Heteroskedastyczność:</strong> BP = `r round(bp_test$statistic,3)`, p = `r formatC(bp_test$p.value,format="e",digits=2)` — istotna heteroskedastyczność, typowa dla danych regionalnych.
 </div>
 
 ## 7.2 Mapa przestrzennego rozkładu reszt modelu OLS
@@ -982,7 +966,7 @@ panel_pdata <- pdata.frame(panel, index = c("geo_id", "year"))
 # będą podstawą wszystkich dalszych testów LM.
 model_pooled <- plm(
   ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-    unesco_count + coast + area_km2,
+    unesco_count + coast + ln_area_km2,
   data  = panel_pdata,
   model = "pooling"
 )
@@ -992,7 +976,7 @@ sm_pooled <- summary(model_pooled)
 
 ```{r pooled-table, echo=FALSE}
 coef_p <- as.data.frame(sm_pooled$coefficients)[-1, ]
-vars_p  <- c("ln_gdp_pc","ln_pop_density","unesco_count","coast","area_km2")
+vars_p  <- c("ln_gdp_pc","ln_pop_density","unesco_count","coast","ln_area_km2")
 
 data.frame(
   Zmienna     = vars_p,
@@ -1043,7 +1027,7 @@ data.frame(
 
 <div class="warning-box">
 ⚠️ <strong>Test Pesarana CD:</strong> z = `r round(pcd_test$statistic, 2)`, p < 2,2×10⁻¹⁶<br><br>
-Silna zależność przekrojowa — regiony europejskie reagują na te same szoki (COVID-19, polityka UE). Konsekwencja: błędy standardowe modelu pooled OLS są zaniżone. Modele z efektami losowymi (SAR-RE) częściowo absorbują tę heterogeniczność przez efekty α_i.
+Silna zależność przekrojowa. Regiony europejskie reagują na te same szoki (COVID-19, polityka UE). Modele z efektami losowymi częściowo radzą sobie z tym problemem.
 </div>
 
 ## 8.3 Test normalności reszt — Jarque-Bera
@@ -1107,7 +1091,7 @@ data.frame(
     "Odrzucamy H₀ ✅",
     "Odrzucamy H₀ ✅",
     "Odrzucamy H₀ ✅",
-    "Odrzucamy H₀ ✅"
+    "Brak podstaw do odrzucenia H₀"
   ),
   check.names = FALSE
 ) |>
@@ -1164,7 +1148,7 @@ Model SAR ma postać: **y = λ·W·y + Xβ + ε**, gdzie λ mierzy siłę wpływ
 
 ### Weryfikacja wyboru SAR względem SDM
 
-Model SAR jest przypadkiem szczególnym modelu SDM (Spatial Durbin Model), który dodatkowo uwzględnia przestrzenne lagi zmiennych objaśniających (WX). Formalnie weryfikujemy, czy SAR nie jest zbyt dużym uproszczeniem za pomocą testu LR (H₀: θ = 0, lagi WX wspólnie nieistotne). Obliczenia i wyniki testu przedstawiono w sekcji 9, po estymacji modelu SAR-RE — wynik: **LR = 7,188, df = 5, p = 0,207**, brak podstaw do odrzucenia H₀. SAR-RE jest właściwą i wystarczającą specyfikacją.
+Model SAR jest przypadkiem szczególnym modelu SDM (Spatial Durbin Model), który dodatkowo uwzględnia przestrzenne lagi zmiennych objaśniających (WX). Formalnie weryfikujemy, czy SAR nie jest zbyt dużym uproszczeniem za pomocą testu LR (H₀: θ = 0, lagi WX wspólnie nieistotne). Obliczenia i wyniki testu przedstawiono w sekcji 9.4, po estymacji obu modeli. Wynik: **LR = 11,747, df = 5, p = 0,038**. Odrzucamy H₀, SDM-RE jest właściwą specyfikacją.
 
 ## 8.6 Testy BSK — wnioski i aktualizacja wyboru modelu
 
@@ -1172,7 +1156,7 @@ Testy BSK (Baltagi, Song, Koh 2003) rozszerzają testy LM o wymiar panelowy. Wer
 
 ```{r bsk-tests, results='hide'}
 formula_bsk <- ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-               unesco_count + coast + area_km2
+               unesco_count + coast + ln_area_km2
 
 bsk_LMH       <- bsktest(formula_bsk, data = panel, listw = W.knn, test = "LMH")
 bsk_LM1       <- bsktest(formula_bsk, data = panel, listw = W.knn, test = "LM1")
@@ -1224,8 +1208,8 @@ data.frame(
 ```
 
 <div class="result-box">
-🎯 <strong>Wybór specyfikacji: SAR-RE</strong><br><br>
-Wszystkie pięć testów BSK jest wysoce istotnych (p < 2,2×10⁻¹⁶). Test łączny (LM-H) odrzuca jednoczesny brak obu efektów. Testy warunkowe CLM-λ i CLM-μ pokazują, że każdy z efektów jest istotny niezależnie od obecności drugiego. Model musi więc uwzględniać <strong>jednocześnie</strong> autoregresję przestrzenną i losowe efekty indywidualne, czyli <strong>SAR-RE</strong>.
+🎯 <strong>Wybór specyfikacji: SDM-RE</strong><br><br>
+Wszystkie pięć testów BSK jest wysoce istotnych (p < 2,2×10⁻¹⁶). Test łączny (LM-H) odrzuca jednoczesny brak obu efektów. Testy warunkowe CLM-λ i CLM-μ pokazują, że każdy z efektów jest istotny niezależnie od obecności drugiego. Model musi więc uwzględniać <strong>jednocześnie</strong> autoregresję przestrzenną i losowe efekty indywidualne. Test LR (sekcja 9.4) potwierdza że SDM-RE jest właściwą specyfikacją względem SAR-RE.
 </div>
 
 <div class="info-box">
@@ -1242,29 +1226,27 @@ Na podstawie testów ex-ante (sekcja 8) estymujemy modele przestrzenne panelowe 
 
 <div class="warning-box">
 ⚠️ <strong>Modele z efektami stałymi (FE) — wykluczone z analizy</strong><br><br>
-Trzy z pięciu zmiennych objaśniających (<code>coast</code>, <code>unesco_count</code>, <code>area_km2</code>) nie zmieniają się w czasie dla żadnego regionu. Estymator FE eliminuje wszystkie zmienne stałe w czasie, więc ich zastosowanie prowadziłoby do utraty kluczowych determinant. Modele RE są jedyną właściwą specyfikacją.
+Trzy z pięciu zmiennych objaśniających (<code>coast</code>, <code>unesco_count</code>, <code>ln_area_km2</code>) nie zmieniają się w czasie dla żadnego regionu. Estymator FE eliminuje wszystkie zmienne stałe w czasie, więc ich zastosowanie prowadziłoby do utraty kluczowych determinant. Modele RE są jedyną właściwą specyfikacją.
 </div>
 
 Estymujemy dwa modele:
 
-- **SAR-RE** — autoregresja przestrzenna + efekty losowe (wskazany przez testy ex-ante)
-- **SEM-RE** — autokorelacja błędów + efekty losowe (alternatywa do porównania)
+- **SAR-RE**: autoregresja przestrzenna + efekty losowe (wskazany przez testy ex-ante)
+- **SEM-RE**: autokorelacja błędów + efekty losowe (alternatywa do porównania)
 
-## 9.2 Przygotowanie danych
+## 9.2 Estymacja modelu SAR-RE
 
-```{r panel-sort}
+```{r panel-sort, results='hide'}
 # splm wymaga posortowania danych wg jednostki, następnie czasu
 panel_splm <- panel[order(panel$geo_id, panel$year), ]
 ```
-
-## 9.3 Estymacja modelu SAR-RE
 
 Model SAR-RE: **y_it = λ·(W⊗I_T)·y_it + X_it·β + α_i + ξ_it**, gdzie α_i ~ IID(0, σ²_α) są losowymi efektami regionów.
 
 ```{r model-sar-re, results='hide'}
 model_SAR_RE <- spml(
   formula = ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-            unesco_count + coast + area_km2,
+            unesco_count + coast + ln_area_km2,
   data    = panel_splm,
   index   = c("geo_id", "year"),
   listw   = W.knn,
@@ -1292,7 +1274,8 @@ data.frame(
 ) |>
   kbl(caption = paste0("Model SAR-RE — współczynniki strukturalne (N=1540, logLik=",
                        round(model_SAR_RE$logLik, 2), ")"),
-      align = c("l","r","r","r","r")) |>
+      align = c("l","r","r","r","r"),
+      row.names = FALSE) |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE)
 ```
 
@@ -1312,14 +1295,18 @@ data.frame(
   row_spec(1, bold = TRUE, background = "#d4edda")
 ```
 
-## 9.4 Weryfikacja SAR-RE względem SDM-RE
+<div class="info-box">
+ℹ️ φ = σ²_α / σ²_ε = `r round(model_SAR_RE$errcomp["phi"], 2)` oznacza że zmienność między regionami (niewyjaśniona przez zmienne objaśniające) jest ok. `r round(model_SAR_RE$errcomp["phi"])` razy większa niż zmienność w czasie wewnątrz regionu, co potwierdza zasadność zastosowania efektów losowych.
+</div>
+
+## 9.3 Weryfikacja SAR-RE względem SDM-RE i estymacja SDM-RE
 
 Model SAR jest przypadkiem szczególnym modelu SDM, który dodaje do formuły przestrzenne lagi zmiennych objaśniających WX. Test LR weryfikuje, czy te lagi są wspólnie istotne (H₀: θ = 0).
 
 ```{r sdm-wx-lags, results='hide'}
 W_mat_sdm <- listw2mat(W.knn)
 
-for (v in c("ln_gdp_pc","ln_pop_density","unesco_count","coast","area_km2")) {
+for (v in c("ln_gdp_pc","ln_pop_density","unesco_count","coast","ln_area_km2")) {
   region_means <- tapply(panel_splm[[v]], panel_splm$geo_id, mean)
   panel_splm[[paste0("W_", v)]] <- as.vector(W_mat_sdm %*% region_means)[
     match(panel_splm$geo_id, names(region_means))
@@ -1330,8 +1317,8 @@ for (v in c("ln_gdp_pc","ln_pop_density","unesco_count","coast","area_km2")) {
 ```{r sdm-re-model, results='hide'}
 model_SDM_RE <- spml(
   formula = ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-            unesco_count + coast + area_km2 +
-            W_ln_gdp_pc + W_ln_pop_density + W_unesco_count + W_coast + W_area_km2,
+            unesco_count + coast + ln_area_km2 +
+            W_ln_gdp_pc + W_ln_pop_density + W_unesco_count + W_coast + W_ln_area_km2,
   data    = panel_splm,
   index   = c("geo_id", "year"),
   listw   = W.knn,
@@ -1351,7 +1338,7 @@ data.frame(
   LR        = round(LR_sdm, 3),
   df        = 5,
   `p-value` = round(pval_sdm, 3),
-  Wniosek   = "Brak podstaw do odrzucenia H₀ ✅",
+  Wniosek   = "Odrzucamy H₀ ⚠️",
   check.names = FALSE
 ) |>
   kbl(caption = "Test LR — SDM-RE vs SAR-RE",
@@ -1361,18 +1348,62 @@ data.frame(
 ```
 
 <div class="result-box">
-✅ <strong>LR = `r round(LR_sdm, 3)`, df = 5, p = `r round(pval_sdm, 3)`</strong><br><br>
-Nie odrzucamy H₀. Lagi WX są wspólnie nieistotne, co potwierdza że SAR-RE jest właściwą i wystarczającą specyfikacją względem SDM-RE.
+⚠️ <strong>LR = `r round(LR_sdm, 3)`, df = 5, p = `r round(pval_sdm, 3)`</strong><br><br>
+Odrzucamy H₀ na poziomie α = 0,05. Lagi WX są wspólnie istotne. Za wynik odpowiada głównie `W_ln_area_km2` (p = 0,002), pozostałe lagi są nieistotne. SDM-RE jest właściwą specyfikacją względem SAR-RE.
 </div>
 
-## 9.5 Estymacja modelu SEM-RE
+### Współczynniki i parametry modelu SDM-RE
+
+```{r sdm-re-summary, echo=FALSE}
+se_sdm   <- sqrt(diag(model_SDM_RE$vcov))
+coef_sdm <- model_SDM_RE$coefficients
+tval_sdm <- coef_sdm / se_sdm
+pval_sdm_coef <- 2 * pnorm(-abs(tval_sdm))
+vars_sdm <- names(coef_sdm)[-1]
+
+data.frame(
+  Zmienna     = vars_sdm,
+  Estymator   = round(coef_sdm[vars_sdm], 5),
+  `Błąd std.` = round(se_sdm[vars_sdm], 5),
+  t           = round(tval_sdm[vars_sdm], 3),
+  `p-value`   = formatC(pval_sdm_coef[vars_sdm], format = "e", digits = 2),
+  check.names = FALSE
+) |>
+  kbl(caption = paste0("Model SDM-RE — współczynniki strukturalne (N=1540, logLik=",
+                       round(model_SDM_RE$logLik, 2), ")"),
+      align = c("l","r","r","r","r"),
+      row.names = FALSE) |>
+  kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE)
+```
+
+```{r sdm-re-params, echo=FALSE}
+data.frame(
+  Parametr    = c("λ (autoregresja przestrzenna)", "φ (efekty losowe)"),
+  Estymator   = c(round(model_SDM_RE$arcoef["lambda"], 4),
+                  round(model_SDM_RE$errcomp["phi"],   4)),
+  `Błąd std.` = c(round(sqrt(model_SDM_RE$vcov.arcoef["lambda","lambda"]), 4),
+                  round(sqrt(model_SDM_RE$vcov.errcomp["phi","phi"]),      4)),
+  `p-value`   = c("< 2,2e-16 ***", "< 2,2e-16 ***"),
+  check.names = FALSE
+) |>
+  kbl(caption = "SDM-RE — parametry przestrzenne i wariancji",
+      align = c("l","r","r","r")) |>
+  kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE) |>
+  row_spec(1, bold = TRUE, background = "#d4edda")
+```
+
+<div class="info-box">
+ℹ️ φ = σ²_α / σ²_ε = `r round(model_SDM_RE$errcomp["phi"], 2)` oznacza że zmienność między regionami (niewyjaśniona przez zmienne objaśniające) jest ok. `r round(model_SDM_RE$errcomp["phi"])` razy większa niż zmienność w czasie wewnątrz regionu, co potwierdza zasadność zastosowania efektów losowych.
+</div>
+
+## 9.4 Estymacja modelu SEM-RE
 
 Model SEM-RE: **y_it = X_it·β + α_i + ξ_it**, gdzie **ξ_it = λ·W·ξ_it + u_it**. Autokorelacja przestrzenna pojawia się tu w składniku losowym, a nie w zmiennej objaśnianej.
 
 ```{r model-sem-re, results='hide'}
 model_SEM_RE <- spml(
   formula = ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-            unesco_count + coast + area_km2,
+            unesco_count + coast + ln_area_km2,
   data    = panel_splm,
   index   = c("geo_id", "year"),
   listw   = W.knn,
@@ -1399,7 +1430,8 @@ data.frame(
 ) |>
   kbl(caption = paste0("Model SEM-RE — współczynniki strukturalne (N=1540, logLik=",
                        round(model_SEM_RE$logLik, 2), ")"),
-      align = c("l","r","r","r","r")) |>
+      align = c("l","r","r","r","r"),
+      row.names = FALSE) |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE)
 ```
 
@@ -1418,30 +1450,37 @@ data.frame(
   row_spec(1:2, background = "#fff3cd")
 ```
 
-## 9.6 Porównanie modeli — miary dopasowania
+## 9.5 Porównanie modeli — miary dopasowania
 
 ```{r model-comparison-panel, echo=FALSE}
 n_par_sar <- length(model_SAR_RE$coefficients) +
              length(model_SAR_RE$arcoef) +
              length(model_SAR_RE$errcomp)
 
+n_par_sdm <- length(model_SDM_RE$coefficients) +
+             length(model_SDM_RE$arcoef) +
+             length(model_SDM_RE$errcomp)
+
 n_par_sem <- length(model_SEM_RE$coefficients) +
              length(model_SEM_RE$arcoef) +
              length(model_SEM_RE$errcomp)
 
 data.frame(
-  Model = c("SAR-RE ⭐", "SEM-RE"),
+  Model = c("SAR-RE", "SDM-RE ⭐", "SEM-RE"),
   Specyfikacja = c(
     "Autoregresja przestrzenna + efekty losowe",
+    "Durbin przestrzenny + efekty losowe",
     "Autokorelacja błędów + efekty losowe"
   ),
   `Log-likelihood` = c(
     round(model_SAR_RE$logLik, 3),
+    round(model_SDM_RE$logLik, 3),
     round(model_SEM_RE$logLik, 3)
   ),
-  `Liczba param.` = c(n_par_sar, n_par_sem),
+  `Liczba param.` = c(n_par_sar, n_par_sdm, n_par_sem),
   AIC = c(
     round(-2 * model_SAR_RE$logLik + 2 * n_par_sar, 3),
+    round(-2 * model_SDM_RE$logLik + 2 * n_par_sdm, 3),
     round(-2 * model_SEM_RE$logLik + 2 * n_par_sem, 3)
   ),
   check.names = FALSE
@@ -1450,11 +1489,11 @@ data.frame(
       align = c("l","l","r","r","r")) |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"),
                 full_width = FALSE) |>
-  row_spec(1, bold = TRUE, background = "#d4edda")
+  row_spec(2, bold = TRUE, background = "#d4edda")
 ```
 
 <div class="info-box">
-ℹ️ Model z wyższą log-likelihood i niższym AIC jest preferowany. Na podstawie testów BSK oczekujemy, że SAR-RE wypadnie lepiej. Ostateczny wybór potwierdzimy testem LR w sekcji 10.
+ℹ️ Model z wyższą log-likelihood i niższym AIC jest preferowany. Test LR (sekcja 9.4) potwierdza że SDM-RE jest istotnie lepszy od SAR-RE.
 </div>
 
 ---
@@ -1470,81 +1509,89 @@ Test ilorazu wiarygodności (LR) sprawdza, czy dodanie interakcji przestrzennych
 **H₀:** Modele przestrzenne nie są lepsze od pooled OLS
 **H_A:** Modele przestrzenne istotnie lepsze
 
-$$LR_{SAR-RE} = 2 \cdot (logL_{SAR-RE} - logL_{pooled}) \sim \chi^2_1$$
+$$LR_{SDM-RE} = 2 \cdot (logL_{SDM-RE} - logL_{pooled}) \sim \chi^2_1$$
 
 ```{r lr-test, results='hide'}
 loglik_pooled <- logLik(lm(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-                           unesco_count + coast + area_km2, data = panel))
+                           unesco_count + coast + ln_area_km2, data = panel))
 loglik_sar_re <- model_SAR_RE$logLik
+loglik_sdm_re <- model_SDM_RE$logLik
 loglik_sem_re <- model_SEM_RE$logLik
 
 LR_sar_re <- 2 * (loglik_sar_re - as.numeric(loglik_pooled))
+LR_sdm_re <- 2 * (loglik_sdm_re - as.numeric(loglik_pooled))
 LR_sem_re <- 2 * (loglik_sem_re - as.numeric(loglik_pooled))
 
 pval_lr_sar <- pchisq(LR_sar_re, df = 1, lower.tail = FALSE)
+pval_lr_sdm <- pchisq(LR_sdm_re, df = 1, lower.tail = FALSE)
 pval_lr_sem <- pchisq(LR_sem_re, df = 1, lower.tail = FALSE)
 ```
 
 ```{r lr-table, echo=FALSE}
 data.frame(
-  Model = c("SAR-RE ⭐", "SEM-RE"),
-  `logL (model)` = c(round(loglik_sar_re, 3), round(loglik_sem_re, 3)),
-  `logL (pooled)` = rep(round(as.numeric(loglik_pooled), 3), 2),
-  `LR` = c(round(LR_sar_re, 3), round(LR_sem_re, 3)),
-  df = c(1, 1),
+  Model = c("SAR-RE", "SDM-RE ⭐", "SEM-RE"),
+  `logL (model)` = c(round(loglik_sar_re, 3), round(loglik_sdm_re, 3), round(loglik_sem_re, 3)),
+  `logL (pooled)` = rep(round(as.numeric(loglik_pooled), 3), 3),
+  `LR` = c(round(LR_sar_re, 3), round(LR_sdm_re, 3), round(LR_sem_re, 3)),
+  df = c(1, 1, 1),
   `p-value` = c(
     formatC(pval_lr_sar, format = "e", digits = 2),
+    formatC(pval_lr_sdm, format = "e", digits = 2),
     formatC(pval_lr_sem, format = "e", digits = 2)
   ),
-  Wniosek = c("Odrzucamy H₀ ✅", "Odrzucamy H₀ ✅"),
+  Wniosek = c("Odrzucamy H₀ ✅", "Odrzucamy H₀ ✅", "Odrzucamy H₀ ✅"),
   check.names = FALSE
 ) |>
   kbl(caption = "Test LR — modele przestrzenne panelowe vs. model pooled OLS",
       align = c("l","r","r","r","r","r","l")) |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"),
                 full_width = FALSE) |>
-  row_spec(1, bold = TRUE, background = "#d4edda")
+  row_spec(2, bold = TRUE, background = "#d4edda")
 ```
 
 <div class="result-box">
-🎯 <strong>Test LR dla SAR-RE:</strong> LR = `r round(LR_sar_re, 2)`, df = 1, p < 2,2×10⁻¹⁶<br><br>
-SAR-RE jest istotnie lepszy od modelu pooled OLS.
+🎯 <strong>Test LR dla SDM-RE:</strong> LR = `r round(LR_sdm_re, 2)`, df = 1, p < 2,2×10⁻¹⁶<br><br>
+SDM-RE jest istotnie lepszy od modelu pooled OLS.
 </div>
 
 ## 10.2 Ocena modelu SEM-RE i próba estymacji SARAR-RE
 
 <div class="warning-box">
 ⚠️ <strong>Model SEM-RE — problem z wnioskowaniem o parametrach przestrzennych</strong><br><br>
-Współczynniki β są oszacowane poprawnie (z prawidłowymi błędami standardowymi), ale składniki wariancji (<code>errcomp</code>: φ i ρ) mają błędy standardowe <code>NaN</code>. Macierz informacji Fishera jest osobliwa w punkcie optimum, prawdopodobnie dlatego, że ρ = 0,805 jest blisko granicy przestrzeni parametrów. Bez wnioskowania o parametrach przestrzennych model nie może być traktowany jako finalny.
+Współczynniki β są oszacowane poprawnie, ale parametry wariancji (φ i ρ) mają błędy standardowe NaN. Prawdopodobną przyczyną jest to, że ρ = 0,805 jest blisko granicy dopuszczalnych wartości. Model nie może być traktowany jako finalny.
 </div>
 
 <div class="warning-box">
 ⚠️ <strong>Model SARAR-RE — błąd numeryczny pakietu</strong><br><br>
-Z uwagi na resztkową autokorelację w SAR-RE, podjęto próbę estymacji modelu SARAR-RE łączącego autoregresję przestrzenną z autokorelacją błędów. Funkcja <code>spml(..., lag = TRUE, spatial.error = "b")</code> zwróciła błąd numeryczny: <em>"NAs in argument 7 and NAOK = FALSE (dotCall64)"</em>. Jest to ograniczenie implementacji pakietu <code>splm</code> przy N = 220, nie błąd specyfikacji. Model SARAR-RE pozostaje metodologicznie uzasadnioną alternatywą, ale niedostępną w tym środowisku.
+Z uwagi na resztkową autokorelację w SDM-RE, podjęto próbę estymacji modelu SARAR-RE łączącego autoregresję przestrzenną z autokorelacją błędów. Funkcja <code>spml(..., lag = TRUE, spatial.error = "b")</code> zwróciła błąd numeryczny: <em>"NAs in argument 7 and NAOK = FALSE (dotCall64)"</em>. Jest to ograniczenie implementacji pakietu <code>splm</code> przy N = 220, nie błąd specyfikacji. Model SARAR-RE pozostaje metodologicznie uzasadnioną alternatywą, ale niedostępną w tym środowisku.
 </div>
 
 ## 10.3 Porównanie zbiorcze — schemat wyboru modelu
 
 ```{r final-comparison, echo=FALSE}
 data.frame(
-  Model = c("Pooled OLS", "SAR-RE ⭐", "SEM-RE"),
+  Model = c("Pooled OLS", "SAR-RE", "SDM-RE ⭐", "SEM-RE"),
   `Log-likelihood` = c(
     round(as.numeric(loglik_pooled), 3),
     round(loglik_sar_re, 3),
+    round(loglik_sdm_re, 3),
     round(loglik_sem_re, 3)
   ),
   AIC = c(
     round(-2 * as.numeric(loglik_pooled) + 2 * 7, 3),
     round(-2 * loglik_sar_re + 2 * n_par_sar, 3),
+    round(-2 * loglik_sdm_re + 2 * n_par_sdm, 3),
     round(-2 * loglik_sem_re + 2 * n_par_sem, 3)
   ),
   `Test LR vs pooled` = c(
     "—",
     paste0("LR=", round(LR_sar_re,2), ", p<2,2×10⁻¹⁶"),
+    paste0("LR=", round(LR_sdm_re,2), ", p<2,2×10⁻¹⁶"),
     paste0("LR=", round(LR_sem_re,2), ", p<2,2×10⁻¹⁶")
   ),
   Status = c(
     "Punkt odniesienia",
+    "Odrzucony (LR vs SDM: p=0,038)",
     "Model finalny ⭐",
     "Problem konwergencji ⚠️"
   ),
@@ -1555,28 +1602,37 @@ data.frame(
   kable_styling(bootstrap_options = c("striped","hover","condensed"),
                 full_width = FALSE) |>
   row_spec(1, color = "#999999") |>
-  row_spec(2, bold = TRUE, background = "#d4edda") |>
-  row_spec(3, background = "#fff3cd")
+  row_spec(2, background = "#fff3cd") |>
+  row_spec(3, bold = TRUE, background = "#d4edda") |>
+  row_spec(4, background = "#fff3cd")
 ```
 
-## 10.4 Test Morana I na resztach modelu SAR-RE
+## 10.4 Test Morana I na resztach modelu SDM-RE
 
-Sprawdzamy, czy reszty modelu SAR-RE nie wykazują resztkowej autokorelacji. Pakiet `splm` nie przechowuje reszt dla modelu RE, więc obliczamy je ręcznie jako:
+Sprawdzamy, czy reszty modelu SDM-RE nie wykazują resztkowej autokorelacji. Pakiet `splm` nie przechowuje reszt dla modelu RE, więc obliczamy je ręcznie jako:
 
-$$\hat{\varepsilon}_{it} = y_{it} - \hat{\lambda} \cdot (Wy)_{it} - X_{it}\hat{\beta}$$
+$$\hat{\varepsilon}_{it} = y_{it} - \hat{\lambda} \cdot (Wy)_{it} - X_{it}\hat{\beta} - WX_{it}\hat{\theta}$$
 
 Następnie uśredniamy reszty per region i testujemy Moranem I na N = 220 średnich.
 
 ```{r moran-residuals, results='hide'}
-# Definicja parametrów modelu SAR-RE (używane też w sekcji 11)
-rho  <- model_SAR_RE$arcoef["lambda"]
-beta <- model_SAR_RE$coefficients
+# Definicja parametrów modelu SDM-RE (używane też w sekcji 11)
+rho  <- model_SDM_RE$arcoef["lambda"]
+beta <- model_SDM_RE$coefficients
 
 W_mat_dense <- listw2mat(W.knn)
 y_vec        <- panel_splm$ln_nights_per_1000pop
-Wy_vec       <- as.vector(W_mat_dense %*% matrix(y_vec, nrow = 220))
+# Dane posortowane geo_id → year (7 obs na region).
+# matrix(y_vec, nrow=7): kolumna i = wszystkie lata regionu i ✓
+# Y %*% t(W) daje macierz 7×220 spatial lagów dla każdego roku.
+# as.vector(t(...)) przywraca kolejność geo → year zgodną z y_vec.
+Y_mat        <- matrix(y_vec, nrow = 7)
+WY_mat       <- Y_mat %*% t(W_mat_dense)
+Wy_vec       <- as.vector(t(WY_mat))
 X_mat        <- model.matrix(ln_nights_per_1000pop ~ ln_gdp_pc + ln_pop_density +
-                             unesco_count + coast + area_km2, data = panel_splm)
+                             unesco_count + coast + ln_area_km2 +
+                             W_ln_gdp_pc + W_ln_pop_density + W_unesco_count +
+                             W_coast + W_ln_area_km2, data = panel_splm)
 residuals_manual <- y_vec - rho * Wy_vec - X_mat %*% beta
 
 resid_df <- data.frame(geo_id = panel_splm$geo_id,
@@ -1594,7 +1650,7 @@ moran_resid_sar <- moran.test(resid_ordered, listw = W.knn, zero.policy = TRUE)
 
 ```{r moran-resid-table, echo=FALSE}
 data.frame(
-  Test = "Moran I — reszty SAR-RE (średnie regionalne)",
+  Test = "Moran I — reszty SDM-RE (średnie regionalne)",
   `Moran I` = round(moran_resid_sar$estimate[1], 4),
   `E(I)`    = round(moran_resid_sar$estimate[2], 4),
   Deviate   = round(moran_resid_sar$statistic, 4),
@@ -1602,7 +1658,7 @@ data.frame(
   Wniosek   = "Istotna resztkowa autokorelacja ⚠️",
   check.names = FALSE
 ) |>
-  kbl(caption = "Test Morana I na resztach modelu SAR-RE",
+  kbl(caption = "Test Morana I na resztach modelu SDM-RE",
       align = c("l","r","r","r","r","l")) |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"),
                 full_width = FALSE) |>
@@ -1611,29 +1667,29 @@ data.frame(
 
 <div class="warning-box">
 ⚠️ <strong>Resztkowa autokorelacja przestrzenna:</strong> Moran I = `r round(moran_resid_sar$estimate[1], 4)`, p = `r formatC(moran_resid_sar$p.value, format="e", digits=2)`<br><br>
-Reszty wykazują istotną autokorelację, co jest ograniczeniem modelu. Możliwe przyczyny: wysokie λ = `r round(rho, 3)` sugeruje, że specyfikacja SARAR-RE mogłaby być lepsza, ale jej estymacja zakończyła się błędem numerycznym (sekcja 10.2). Przy T=7 i N=220 test Morana I ma też bardzo wysoką moc i wykrywa nawet małe odchylenia (I = 0,110 przy E(I) = -0,005).
+Reszty wykazują silną resztkową autokorelację przestrzenną. Model SDM-RE, jako rozszerzenie SAR, nie redukuje autokorelacji w składniku losowym. Naturalną alternatywą byłby model SARAR-RE łączący autoregresję przestrzenną z autokorelacją błędów, jednak jego estymacja zakończyła się błędem numerycznym pakietu <code>splm</code> (sekcja 10.2). SDM-RE pozostaje najlepszym dostępnym modelem — wyniki należy interpretować z uwzględnieniem tego ograniczenia.
 </div>
 
 ## 10.5 Wnioski — model finalny
 
 <div class="result-box">
-🎯 <strong>Model finalny: SAR-RE</strong><br><br>
-Wybieramy model SAR-RE na podstawie:
+🎯 <strong>Model finalny: SDM-RE</strong><br><br>
+Wybieramy model SDM-RE na podstawie:
 <ol>
-<li>Robust LM-SAR istotnie bardziej znaczący niż Robust LM-SEM, co wskazuje na autoregresję przestrzenną.</li>
-<li>Test LR (SDM-RE vs SAR-RE): LR = `r round(LR_sdm, 3)`, p = `r round(pval_sdm, 3)` — lagi WX wspólnie nieistotne, SAR-RE nie jest zbyt dużym uproszczeniem względem SDM.</li>
+<li>Robust LM-SAR istotnie bardziej znaczący niż Robust LM-SEM, co wskazuje na autoregresję przestrzenną jako właściwy mechanizm.</li>
 <li>Testy BSK potwierdzają konieczność uwzględnienia zarówno autoregresji przestrzennej, jak i efektów losowych.</li>
-<li>Test LR (SAR-RE vs pooled OLS): LR = `r round(LR_sar_re, 2)`, p < 2,2×10⁻¹⁶ — model SAR-RE lepszy od pooled OLS.</li>
-<li>Wyższy logLik niż SEM-RE; SEM-RE ma dodatkowo problem z wnioskowaniem o parametrach przestrzennych.</li>
+<li>Test LR (SDM-RE vs SAR-RE): LR = `r round(LR_sdm, 3)`, p = `r round(pval_sdm, 3)` — lagi WX wspólnie istotne, SDM-RE istotnie lepszy od SAR-RE.</li>
+<li>Test LR (SDM-RE vs pooled OLS): LR = `r round(LR_sdm_re, 2)`, p < 2,2×10⁻¹⁶ — model SDM-RE lepszy od pooled OLS.</li>
+<li>Wyższy logLik niż SAR-RE i SEM-RE; SEM-RE ma dodatkowo problem z wnioskowaniem o parametrach przestrzennych.</li>
 </ol>
-Model: <strong>y_it = λ·(W⊗I_T)·y_it + X_it·β + α_i + ξ_it</strong>, gdzie λ = 0,793 (parametr autoregresji), α_i to losowe efekty regionów (φ = 26,55, co wskazuje na silne różnice między regionami niewyjaśnione przez zmienne).
+Model: <strong>y_it = λ·(W⊗I_T)·y_it + X_it·β + WX_it·θ + α_i + ξ_it</strong>, gdzie λ = `r round(rho, 3)` (parametr autoregresji), α_i to losowe efekty regionów (φ = `r round(model_SDM_RE$errcomp["phi"], 2)`, co wskazuje na silne różnice między regionami niewyjaśnione przez zmienne).
 </div>
 
 ---
 
 # 11. Efekty bezpośrednie, pośrednie i całkowite
 
-W modelu SAR współczynniki β nie są bezpośrednimi efektami zmiennych, bo zmiana w jednym regionie wpływa przez λ na sąsiadów, którzy z kolei wpływają z powrotem. Zgodnie z LeSage i Pace (2009) wyznaczamy trzy rodzaje efektów:
+W modelu SDM współczynniki β nie są bezpośrednimi efektami zmiennych, bo zmiana w jednym regionie wpływa przez λ na sąsiadów, którzy z kolei wpływają z powrotem. W SDM dodatkowo uwzględniane są lagi przestrzenne WX. Zgodnie z LeSage i Pace (2009) wyznaczamy trzy rodzaje efektów:
 
 - **Efekt bezpośredni:** wpływ zmiennej w danym regionie na wynik w tym samym regionie
 - **Efekt pośredni:** wpływ zmiennej w danym regionie na wynik w regionach sąsiednich (spillover)
@@ -1641,30 +1697,30 @@ W modelu SAR współczynniki β nie są bezpośrednimi efektami zmiennych, bo zm
 
 ## 11.1 Obliczanie efektów — funkcja `impacts()`
 
-W modelu SAR-RE w postaci zredukowanej macierz efektów dla zmiennej $X_k$ ma postać:
+W modelu SDM-RE efekty dla zmiennej $X_k$ mają postać:
 
-$$y = (I - \lambda W)^{-1} X\beta + (I - \lambda W)^{-1}\varepsilon \quad \Rightarrow \quad \frac{\partial y}{\partial X_k} = (I - \lambda W)^{-1} \beta_k$$
+$$\frac{\partial y}{\partial X_k} = (I - \lambda W)^{-1} (\beta_k I + \theta_k W)$$
 
-Efekty obliczane są za pomocą funkcji `impacts()` z pakietu `spdep`, która implementuje metodę śladową (trace) Barryego i Paca (2004). Parametr `time=7` odpowiada liczbie okresów w panelu. Błędy standardowe i p-wartości wyznaczane są z wbudowanej symulacji Monte Carlo (`R=1000`). Przed wywołaniem `impacts()` konieczne jest ustawienie atrybutu `have_factor_preds = FALSE` — znany workaround dla obiektów `splm`.
+Efekty obliczamy funkcją `impacts()` z pakietu `spdep`. Błędy standardowe i p-wartości wyznaczane są symulacją Monte Carlo (`R=1000`). Przed wywołaniem `impacts()` ustawiamy atrybut `have_factor_preds = FALSE` (wymagane dla obiektów `splm`).
 
 ```{r effects-computation, results='hide'}
 # Poprawka atrybutu wymagana dla modeli splm (workaround)
-attr(model_SAR_RE, "have_factor_preds") <- FALSE
+attr(model_SDM_RE, "have_factor_preds") <- FALSE
 
 # Obliczenie efektów metodą trace (Barry i Pace 2004)
 # time=7 — liczba okresów w panelu; R=1000 — symulacja MC dla SE i p-value
 set.seed(123)
-imp <- impacts(model_SAR_RE, listw = W.knn, time = 7, R = 1000)
+imp <- impacts(model_SDM_RE, listw = W.knn, time = 7, R = 1000)
 
-# Nazwy zmiennych objaśniających (bez interceptu)
-vars <- c("ln_gdp_pc", "ln_pop_density", "unesco_count", "coast", "area_km2")
+# Nazwy zmiennych objaśniających (bez interceptu i bez lagów WX)
+vars <- c("ln_gdp_pc", "ln_pop_density", "unesco_count", "coast", "ln_area_km2")
 
-# Punktowe oceny efektów
+# Punktowe oceny efektów — tylko zmienne główne (bez lagów WX)
 effects_df <- data.frame(
   Zmienna     = vars,
-  Bezposredni = as.numeric(imp$res$direct),
-  Posredni    = as.numeric(imp$res$indirect),
-  Calkowity   = as.numeric(imp$res$total)
+  Bezposredni = as.numeric(imp$res$direct)[1:5],
+  Posredni    = as.numeric(imp$res$indirect)[1:5],
+  Calkowity   = as.numeric(imp$res$total)[1:5]
 )
 
 # Błędy standardowe i p-wartości z symulacji MC
@@ -1672,12 +1728,12 @@ imp_sum <- summary(imp, zstats = TRUE, short = TRUE)
 
 mc_results <- data.frame(
   Zmienna      = vars,
-  Bezp_SE      = as.numeric(imp_sum$semat[, "Direct"]),
-  Posred_SE    = as.numeric(imp_sum$semat[, "Indirect"]),
-  Calkowity_SE = as.numeric(imp_sum$semat[, "Total"]),
-  Bezp_p       = as.numeric(imp_sum$pzmat[, "Direct"]),
-  Posred_p     = as.numeric(imp_sum$pzmat[, "Indirect"]),
-  Calkowity_p  = as.numeric(imp_sum$pzmat[, "Total"])
+  Bezp_SE      = as.numeric(imp_sum$semat[1:5, "Direct"]),
+  Posred_SE    = as.numeric(imp_sum$semat[1:5, "Indirect"]),
+  Calkowity_SE = as.numeric(imp_sum$semat[1:5, "Total"]),
+  Bezp_p       = as.numeric(imp_sum$pzmat[1:5, "Direct"]),
+  Posred_p     = as.numeric(imp_sum$pzmat[1:5, "Indirect"]),
+  Calkowity_p  = as.numeric(imp_sum$pzmat[1:5, "Total"])
 )
 ```
 
@@ -1687,28 +1743,29 @@ mc_results <- data.frame(
 effects_full <- effects_df |>
   left_join(mc_results, by = "Zmienna") |>
   mutate(
-    beta_val    = beta[vars],
+    beta_val    = as.numeric(beta[vars]),
     Bezp_fmt    = paste0(round(Bezposredni, 4), " (", round(Bezp_SE, 4), ")"),
     Posred_fmt  = paste0(round(Posredni,    4), " (", round(Posred_SE, 4), ")"),
     Calko_fmt   = paste0(round(Calkowity,   4), " (", round(Calkowity_SE, 4), ")"),
     p_fmt       = case_when(
-      Bezp_p == 0    ~ "< 0,001",
-      TRUE           ~ as.character(Bezp_p)
+      Bezp_p < 0.001 ~ "< 0,001",
+      TRUE           ~ formatC(Bezp_p, format="e", digits=2)
     )
   )
 
 data.frame(
-  Zmienna      = vars,
-  `β (SAR-RE)` = round(beta[vars], 5),
+  Zmienna             = vars,
+  `β (SDM-RE)`        = round(beta[vars], 5),
   `Efekt bezp. (SE)`  = effects_full$Bezp_fmt,
   `Efekt pośr. (SE)`  = effects_full$Posred_fmt,
   `Efekt całk. (SE)`  = effects_full$Calko_fmt,
-  `p-value`           = ifelse(effects_full$Bezp_p == 0, "< 0,001",
-                               as.character(effects_full$Bezp_p)),
-  check.names = FALSE
+  `p-value`           = effects_full$p_fmt,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
 ) |>
-  kbl(caption = "Efekty bezpośrednie, pośrednie i całkowite — model SAR-RE z błędami std. (symulacja Monte Carlo, R=1000)",
-      align = c("l","r","r","r","r","r")) |>
+  kbl(caption = "Efekty bezpośrednie, pośrednie i całkowite — model SDM-RE z błędami std. (symulacja Monte Carlo, R=1000)",
+      align = c("l","r","r","r","r","r"),
+      row.names = FALSE) |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"),
                 full_width = FALSE) |>
   row_spec(0, bold = TRUE) |>
@@ -1718,7 +1775,7 @@ data.frame(
 ```
 
 <div class="info-box">
-ℹ️ Błędy standardowe wyznaczono metodą Monte Carlo (1000 replikacji), losując λ i β z ich rozkładów i obliczając efekty za każdym razem. p-wartości wyznaczono empirycznie. Efekty pośrednie są ok. 3× większe od bezpośrednich ze względu na wysokie λ = `r round(rho, 3)` (mnożnik przestrzenny ok. `r round(1/(1-rho), 2)`). Wszystkie efekty są istotne statystycznie (p ≤ 0,016).
+ℹ️ Błędy standardowe wyznaczono metodą Monte Carlo (1000 replikacji), losując λ, β i θ z ich rozkładów i obliczając efekty za każdym razem. p-wartości wyznaczono empirycznie. W modelu SDM efekty uwzględniają zarówno bezpośredni wpływ X, jak i lagi WX, co daje pełniejszy obraz mechanizmów przestrzennych niż w SAR.
 </div>
 
 ## 11.3 Interpretacja efektów
@@ -1729,28 +1786,28 @@ e_gdp    <- e[e$Zmienna == "ln_gdp_pc",    ]
 e_pop    <- e[e$Zmienna == "ln_pop_density",]
 e_unesco <- e[e$Zmienna == "unesco_count",  ]
 e_coast  <- e[e$Zmienna == "coast",         ]
-e_area   <- e[e$Zmienna == "area_km2",      ]
+e_area   <- e[e$Zmienna == "ln_area_km2",      ]
 ```
 
-**PKB per capita (`ln_gdp_pc`):** Wzrost PKB per capita o 1% w danym regionie zwiększa intensywność turystyki o `r round(e_gdp$Bezposredni/100, 5)` jedn. w tym samym regionie (p < 0,001) i o `r round(e_gdp$Posredni/100, 5)` jedn. w regionach sąsiednich (p < 0,001). Efekt bezpośredni `r round(e_gdp$Bezposredni, 4)` odpowiada zmianie ln(PKB per capita) o 1 jednostkę, tj. wzrostowi PKB per capita o ok. 172%. Efekt całkowity: `r round(e_gdp$Calkowity, 4)` jedn.
+**PKB per capita (`ln_gdp_pc`):** Wzrost PKB per capita o 1% zwiększa intensywność turystyki o `r round(e_gdp$Bezposredni/100, 5)` jedn. w danym regionie i o `r round(e_gdp$Posredni/100, 5)` jedn. w regionach sąsiednich (oba efekty p < 0,001). Efekt całkowity: `r round(e_gdp$Calkowity, 4)` jedn.
 
-**Gęstość zaludnienia (`ln_pop_density`):** Wzrost gęstości o 1% zmniejsza intensywność o `r round(abs(e_pop$Bezposredni)/100, 5)` jedn. w danym regionie (p < 0,001) i o `r round(abs(e_pop$Posredni)/100, 5)` jedn. u sąsiadów (p < 0,001). Efekt bezpośredni `r round(e_pop$Bezposredni, 4)` odpowiada zmianie ln(gęstości) o 1 jednostkę. Efekt całkowity: `r round(e_pop$Calkowity, 4)` jedn.
+**Gęstość zaludnienia (`ln_pop_density`):** Wzrost gęstości o 1% zmniejsza intensywność o `r round(abs(e_pop$Bezposredni)/100, 5)` jedn. w danym regionie i o `r round(abs(e_pop$Posredni)/100, 5)` jedn. u sąsiadów (oba efekty p < 0,001). Efekt całkowity: `r round(e_pop$Calkowity, 4)` jedn.
 
-**Liczba obiektów UNESCO (`unesco_count`):** Każdy dodatkowy obiekt UNESCO zwiększa intensywność o `r round(e_unesco$Bezposredni, 4)` jedn. w danym regionie (p = 0,016) i o `r round(e_unesco$Posredni, 4)` jedn. w sąsiednich (p = 0,016). UNESCO ma najsłabszy spośród wszystkich zmiennych sygnał statystyczny.
+**Liczba obiektów UNESCO (`unesco_count`):** Każdy dodatkowy obiekt UNESCO zwiększa intensywność o `r round(e_unesco$Bezposredni, 4)` jedn. w danym regionie i o `r round(e_unesco$Posredni, 4)` jedn. w sąsiednich. Efekt całkowity: `r round(e_unesco$Calkowity, 4)` jedn.
 
-**Dostęp do wybrzeża (`coast`):** Regiony nadmorskie mają wyższą intensywność o `r round(e_coast$Bezposredni, 4)` jedn. niż śródlądowe (p = 0,002), a sąsiadujące z nimi regiony korzystają z efektu spillover równego `r round(e_coast$Posredni, 4)` jedn. (p = 0,002).
+**Dostęp do wybrzeża (`coast`):** Regiony nadmorskie mają wyższą intensywność o `r round(e_coast$Bezposredni, 4)` jedn. niż śródlądowe, a sąsiadujące z nimi regiony korzystają ze spillovera równego `r round(e_coast$Posredni, 4)` jedn. Efekt całkowity: `r round(e_coast$Calkowity, 4)` jedn.
 
-**Powierzchnia regionu (`area_km2`):** Wzrost powierzchni o 1 km² zmniejsza intensywność o `r round(abs(e_area$Bezposredni), 7)` jedn. (p < 0,001). Przy typowej wielkości regionu NUTS2 (ok. 10 000 km²) efekt całkowity wynosi ok. -0,40 jedn. logarytmu.
+**Powierzchnia regionu (`ln_area_km2`):** Wzrost powierzchni o 1% zmniejsza intensywność o `r round(abs(e_area$Bezposredni)/100, 5)` jedn. w danym regionie i o `r round(abs(e_area$Posredni)/100, 5)` jedn. w sąsiednich (oba efekty p < 0,001). Efekt całkowity: `r round(e_area$Calkowity, 4)` jedn.
 
 ## 11.4 Wnioski
 
 <div class="result-box">
 🎯 <strong>Wnioski z analizy efektów przestrzennych</strong><br><br>
 <ol>
-<li>Wszystkie efekty są statystycznie istotne (p ≤ 0,021). PKB, gęstość zaludnienia i powierzchnia mają p < 0,001, UNESCO i wybrzeże p < 0,05.</li>
+<li>Wszystkie efekty zmiennych głównych są statystycznie istotne (p < 0,05). PKB, gęstość zaludnienia i powierzchnia mają p < 0,001.</li>
 <li>Efekty pośrednie są ok. 3× większe od bezpośrednich. Wynika to z wysokiego λ = `r round(rho, 3)` (mnożnik przestrzenny ok. `r round(1/(1-rho), 2)`), co oznacza że wpływ zmian w jednym regionie silnie rozchodzi się na sąsiednie.</li>
 <li>Znaki efektów pośrednich są takie same jak β, mechanizm przestrzenny wzmacnia więc kierunek zależności. Bogatsze regiony i te z obiektami UNESCO generują pozytywne efekty dla sąsiadów.</li>
-<li>Efekt pośredni PKB (`r round(e_gdp$Posredni, 4)`, p < 0,001) jest ok. 3,6× większy od bezpośredniego (`r round(e_gdp$Bezposredni, 4)`), co wskazuje na silne powiązania przestrzenne europejskich rynków turystycznych.</li>
+<li>Efekt pośredni PKB (`r round(e_gdp$Posredni, 4)`, p < 0,001) jest ok. 3× większy od bezpośredniego (`r round(e_gdp$Bezposredni, 4)`), co wskazuje na silne powiązania przestrzenne europejskich rynków turystycznych.</li>
 </ol>
 </div>
 
