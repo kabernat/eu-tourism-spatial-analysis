@@ -376,7 +376,7 @@ Wizualizacja potwierdza różnice między macierzami: Queen jest najrzadsza, KNN
 
 # 4. Globalna statystyka Morana I
 
-Statystyka Morana I mierzy globalną autokorelację przestrzenną. Przyjmuje wartości od -1 (ujemna autokorelacja) przez 0 (brak autokorelacji) do +1 (dodatnia autokorelacja). Testujemy hipotezę zerową o braku autokorelacji przestrzennej.
+Statystyka Morana I mierzy globalną powiązania przestrzenne. Wartość tej statystyki określa siłę oraz kierunek zależności. Testujemy hipotezę zerową o braku interakcji przestrzennych.
 
 ## 4.1 Moran I dla 2019 — porównanie trzech macierzy wag
 
@@ -414,7 +414,7 @@ data.frame(
 
 ## 4.2 Ewolucja Morana I w czasie (2017–2023)
 
-Sprawdzamy jak zmieniała się autokorelacja przestrzenna w kolejnych latach, żeby ocenić czy pandemia COVID-19 wpłynęła na przestrzenny rozkład turystyki w Europie. Używamy macierzy KNN k=5.
+Sprawdzamy jak zmieniała się siła zależności przestrzennej w kolejnych latach, żeby ocenić czy pandemia COVID-19 wpłynęła na przestrzenny rozkład turystyki w Europie. Używamy macierzy KNN k=5.
 
 ```{r moran-time-evolution}
 # Obliczamy Moran I dla każdego roku panelu
@@ -471,7 +471,7 @@ ggplot(moran_df, aes(x = year, y = moran_I)) +
 
 ## 4.3 Wykresy rozproszenia Morana
 
-Wykres rozproszenia Morana pokazuje zależność między wartością zmiennej w danym regionie (oś X) a średnią u jego sąsiadów (oś Y). Dodatnie nachylenie linii regresji odpowiada dodatniej autokorelacji. Cztery ćwiartki odpowiadają typom klastrów LISA.
+Wykres rozproszenia Morana pokazuje zależność między wartością zmiennej w danym regionie (oś X) a średnią u jego sąsiadów (oś Y). Dodatnie nachylenie linii regresji odpowiada dodatniej korelacji. Cztery ćwiartki odpowiadają typom klastrów LISA.
 
 ```{r moran-scatter-2019, fig.width=7, fig.height=6}
 # Przygotowanie danych 2019 (kolejność dopasowana do mapy)
@@ -505,7 +505,7 @@ moran.plot(d2023$ln_nights_per_1000pop, listw = W.knn,
 
 # 5. Lokalna statystyka Morana I (LISA)
 
-Lokalna statystyka Morana I rozkłada globalną autokorelację na wkład poszczególnych regionów. Dla każdego regionu obliczamy lokalną statystykę I_i i jej istotność. LISA pozwala zidentyfikować:
+Lokalna statystyka Morana I rozkłada globalną zależność przestrzenną na wkład poszczególnych regionów. Dla każdego regionu obliczamy lokalną statystykę I_i i jej istotność. LISA pozwala zidentyfikować:
 
 - **Hot spots (High-High):** region o wysokiej wartości otoczony przez podobne
 - **Cold spots (Low-Low):** region o niskiej wartości otoczony przez podobne
@@ -715,7 +715,7 @@ Jako główną macierz wag wybrano **KNN k=5** z kilku powodów. Po pierwsze, ka
 
 ## 6.3 Ewolucja autokorelacji — wpływ COVID-19
 
-W latach 2017-2019 autokorelacja stopniowo malała (z 0,395 do 0,378), co może sugerować powolną dywersyfikację turystyki. W 2020 roku gwałtownie wzrosła do 0,427, bo turyści podczas pandemii wybierali znane, sprawdzone destynacje zamiast eksplorować nowe miejsca. W 2021 roku wartość pozostawała podwyższona (0,403), dopiero w latach 2022-2023 stabilizując się na poziomie ok. 0,396, zbliżonym do wartości sprzed pandemii, choć powrót nie był natychmiastowy.
+W latach 2017-2019 wartość statystyki stopniowo malała (z 0,395 do 0,378), co może sugerować powolną dywersyfikację turystyki. W 2020 roku gwałtownie wzrosła do 0,427, bo turyści podczas pandemii wybierali znane, sprawdzone destynacje zamiast eksplorować nowe miejsca. W 2021 roku wartość pozostawała podwyższona (0,403), dopiero w latach 2022-2023 stabilizując się na poziomie ok. 0,396, zbliżonym do wartości sprzed pandemii, choć powrót nie był natychmiastowy.
 
 ## 6.4 Klastry LISA — identyfikacja obszarów koncentracji
 
@@ -729,7 +729,7 @@ Analiza LISA identyfikuje 45 regionów tworzących istotne klastry (α = 0,05) z
 
 ## 6.5 Konsekwencje dla modelowania
 
-Istotna autokorelacja przestrzenna we wszystkich badanych latach uzasadnia zastosowanie modeli regresji przestrzennej. Model OLS ignoruje zależności między regionami, przez co jego estymatory byłyby obciążone. Konkretny typ modelu wybierzemy na podstawie testów ex-ante w sekcji 8.
+Istotna interakcja przestrzenna we wszystkich badanych latach uzasadnia zastosowanie modeli regresji przestrzennej. Model OLS ignoruje zależności między regionami, przez co jego estymatory byłyby obciążone. Konkretny typ modelu wybierzemy na podstawie testów ex-ante w sekcji 8.
 
 ---
 
