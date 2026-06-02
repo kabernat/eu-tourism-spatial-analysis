@@ -821,7 +821,7 @@ data.frame(
 
 **Wniosek z diagnostyki modeli:**
 
-Modele zawierające jednocześnie `ln_gdp_pc` i `ln_wage_per_capita` są nieużywalne (VIF ok. 38). Symptomem jest tzw. *sign reversal*: `ln_wage_per_capita` ma w tych modelach ujemny znak, co jest ekonomicznie absurdalne. Spośród modeli bez multikoliniearności (VIF < 2) najlepszy jest `model_no_wage` (najniższe BIC i AIC). Zmienna `tertiary_edu` jest w nim nieistotna, bo jej informację przejmuje `ln_area_km2`, dlatego usuwamy ją w modelu finalnym.
+Modele zawierające jednocześnie `ln_gdp_pc` i `ln_wage_per_capita` są nieużywalne (VIF ok. 38). Symptomem jest tzw. *sign reversal*: `ln_wage_per_capita` ma w tych modelach ujemny znak, co jest ekonomicznie absurdalne. Spośród modeli bez multikoliniearności (VIF < 2) najlepszy jest `model_no_wage` (najniższe BIC i AIC). Zmienna `tertiary_edu` traci w nim na istotności, ponieważ informację o kapitale ludzkim przechwytuje `ln_gdp_pc` (zamożność regionu naturalnie i silnie koreluje z poziomem wykształcenia mieszkańców, r = 0,52). Z tego powodu usuwamy ją w modelu finalnym.
 
 ```{r ols-finalny, results='hide'}
 # Dane muszą być w kolejności zgodnej z macierzą W.knn (kolejność nuts2_proj$NUTS_ID)
@@ -1027,7 +1027,7 @@ data.frame(
 
 <div class="warning-box">
 ⚠️ <strong>Test Pesarana CD:</strong> z = `r round(pcd_test$statistic, 2)`, p < 2,2×10⁻¹⁶<br><br>
-Silna zależność przekrojowa. Regiony europejskie reagują na te same szoki (COVID-19, polityka UE). Modele z efektami losowymi częściowo radzą sobie z tym problemem.
+Silna zależność przekrojowa. Regiony europejskie reagują na te same szoki (COVID-19, polityka UE). Zwykłe modele panelowe OLS/RE nie radzą sobie z tym problemem, co stanowi dodatkowy, silny argument za zastosowaniem modeli przestrzennych (np. SDM), które jawnie modelują tę zależność poprzez przestrzenną macierz wag W.
 </div>
 
 ## 8.3 Test normalności reszt — Jarque-Bera
@@ -1179,7 +1179,7 @@ data.frame(
     "σ²_α = 0 przy λ = 0",
     "λ = 0 przy σ²_α = 0",
     "λ = 0 przy σ²_α > 0",
-    "σ²_α = 0 przy dowolnym λ"
+    "σ²_α = 0 przy λ ≠ 0"
   ),
   Statystyka = c(
     round(bsk_LMH$statistic, 3),
@@ -1208,7 +1208,7 @@ data.frame(
 ```
 
 <div class="result-box">
-🎯 <strong>Wybór specyfikacji: SDM-RE</strong><br><br>
+🎯 <strong>Wybór specyfikacji: SAR-RE</strong><br><br>
 Wszystkie pięć testów BSK jest wysoce istotnych (p < 2,2×10⁻¹⁶). Test łączny (LM-H) odrzuca jednoczesny brak obu efektów. Testy warunkowe CLM-λ i CLM-μ pokazują, że każdy z efektów jest istotny niezależnie od obecności drugiego. Model musi więc uwzględniać <strong>jednocześnie</strong> autoregresję przestrzenną i losowe efekty indywidualne. Test LR (sekcja 9.4) potwierdza że SDM-RE jest właściwą specyfikacją względem SAR-RE.
 </div>
 
