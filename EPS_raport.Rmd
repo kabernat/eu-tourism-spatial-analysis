@@ -1,7 +1,7 @@
 ---
 title: "Projekt EPS"
 subtitle: "Intensywność turystyki w regionach NUTS2 UE (2017–2023)"
-author: "Zespół projektowy"
+author: "Bartłomiej Duda, Kajetan Bernat, Olga Dawidowicz, Oskar Iwaszkiewicz"
 date: "`r Sys.Date()`"
 output:
   html_document:
@@ -142,11 +142,9 @@ Brak ryzyka utraty obserwacji przy operacji <code>left_join</code> w kolejnych k
 
 ## 1.3 Reprojekcja geometrii
 
+Reprojekcja do EPSG:3035 (European Equal Area Projection — ETRS89-LAEA) Projekcja równopowierzchniowa jest wymagana do poprawnego wyznaczania macierzy wag opartych na odległościach i sąsiedztwie wielokątów. Bez reprojekcji z WGS84 obliczane odległości i centroidy byłyby zniekształcone.
+
 ```{r reproject}
-# Reprojekcja do EPSG:3035 (European Equal Area Projection — ETRS89-LAEA)
-# Projekcja równopowierzchniowa jest wymagana do poprawnego wyznaczania
-# macierzy wag opartych na odległościach i sąsiedztwie wielokątów.
-# Bez reprojekcji z WGS84 obliczane odległości i centroidy byłyby zniekształcone.
 nuts2_proj <- st_transform(nuts2, 3035)
 panel$ln_area_km2 <- log(panel$area_km2)
 ```
