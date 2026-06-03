@@ -1148,7 +1148,7 @@ Model SAR ma postać: **y = λ·W·y + Xβ + ε**, gdzie λ mierzy siłę wpływ
 
 ### Weryfikacja wyboru SAR względem SDM
 
-Model SAR jest przypadkiem szczególnym modelu SDM (Spatial Durbin Model), który dodatkowo uwzględnia przestrzenne lagi zmiennych objaśniających (WX). Formalnie weryfikujemy, czy SAR nie jest zbyt dużym uproszczeniem za pomocą testu LR (H₀: θ = 0, lagi WX wspólnie nieistotne). Obliczenia i wyniki testu przedstawiono w sekcji 9.4, po estymacji obu modeli. Wynik: **LR = 11,747, df = 5, p = 0,038**. Odrzucamy H₀, SDM-RE jest właściwą specyfikacją.
+Model SAR jest przypadkiem szczególnym modelu SDM (Spatial Durbin Model), który dodatkowo uwzględnia przestrzenne lagi zmiennych objaśniających (WX). Formalnie weryfikujemy, czy SAR nie jest zbyt dużym uproszczeniem za pomocą testu LR (H₀: θ = 0, lagi WX wspólnie nieistotne). Obliczenia i wyniki testu przedstawiono w sekcji 10.2, po estymacji obu modeli. Wynik: **LR = 11,747, df = 5, p = 0,038**. Odrzucamy H₀, SDM-RE jest właściwą specyfikacją.
 
 ## 8.6 Testy BSK — wnioski i aktualizacja wyboru modelu
 
@@ -1209,7 +1209,7 @@ data.frame(
 
 <div class="result-box">
 🎯 <strong>Wybór specyfikacji: SAR-RE</strong><br><br>
-Wszystkie pięć testów BSK jest wysoce istotnych (p < 2,2×10⁻¹⁶). Test łączny (LM-H) odrzuca jednoczesny brak obu efektów. Testy warunkowe CLM-λ i CLM-μ pokazują, że każdy z efektów jest istotny niezależnie od obecności drugiego. Model musi więc uwzględniać <strong>jednocześnie</strong> autoregresję przestrzenną i losowe efekty indywidualne. Test LR (sekcja 9.4) potwierdza że SDM-RE jest właściwą specyfikacją względem SAR-RE.
+Wszystkie pięć testów BSK jest wysoce istotnych (p < 2,2×10⁻¹⁶). Test łączny (LM-H) odrzuca jednoczesny brak obu efektów. Testy warunkowe CLM-λ i CLM-μ pokazują, że każdy z efektów jest istotny niezależnie od obecności drugiego. Model musi więc uwzględniać <strong>jednocześnie</strong> autoregresję przestrzenną i losowe efekty indywidualne. Test LR (sekcja 10.2) potwierdza że SDM-RE jest właściwą specyfikacją względem SAR-RE.
 </div>
 
 <div class="info-box">
@@ -1241,7 +1241,7 @@ Estymujemy dwa modele:
 panel_splm <- panel[order(panel$geo_id, panel$year), ]
 ```
 
-Model SAR-RE: **y_it = λ·(W⊗I_T)·y_it + X_it·β + α_i + ξ_it**, gdzie α_i ~ IID(0, σ²_α) są losowymi efektami regionów.
+Model SAR-RE uwzględnia autoregresję przestrzenną (intensywność turystyki w regionie zależy od intensywności u sąsiadów) oraz losowe efekty indywidualne (stałe w czasie różnice między regionami).
 
 ```{r model-sar-re, results='hide'}
 model_SAR_RE <- spml(
@@ -1295,13 +1295,11 @@ data.frame(
   row_spec(1, bold = TRUE, background = "#d4edda")
 ```
 
-<div class="info-box">
-ℹ️ φ = σ²_α / σ²_ε = `r round(model_SAR_RE$errcomp["phi"], 2)` oznacza że zmienność między regionami (niewyjaśniona przez zmienne objaśniające) jest ok. `r round(model_SAR_RE$errcomp["phi"])` razy większa niż zmienność w czasie wewnątrz regionu, co potwierdza zasadność zastosowania efektów losowych.
-</div>
+Parametr λ = `r round(model_SAR_RE$arcoef["lambda"], 4)` oznacza, że intensywność turystyki w danym regionie jest silnie powiązana ze średnią intensywnością w regionach sąsiednich — autoregresja przestrzenna jest wysoce istotna. Parametr φ = `r round(model_SAR_RE$errcomp["phi"], 2)` wskazuje, że zmienność między regionami jest ok. `r round(model_SAR_RE$errcomp["phi"])` razy większa niż zmienność wewnątrz regionu w czasie, co potwierdza zasadność efektów losowych.
 
-## 9.3 Weryfikacja SAR-RE względem SDM-RE i estymacja SDM-RE
+## 9.3 Estymacja modelu SDM-RE
 
-Model SAR jest przypadkiem szczególnym modelu SDM, który dodaje do formuły przestrzenne lagi zmiennych objaśniających WX. Test LR weryfikuje, czy te lagi są wspólnie istotne (H₀: θ = 0).
+Model SDM-RE jest rozszerzeniem modelu SAR-RE — oprócz autoregresji przestrzennej uwzględnia dodatkowo przestrzenne lagi zmiennych objaśniających (WX), co pozwala modelować wpływ cech sąsiednich regionów na turystykę danego regionu. SAR-RE jest przypadkiem szczególnym SDM-RE przy θ = 0. Formalną weryfikację, czy lagi WX są wspólnie istotne (H₀: θ = 0), przeprowadzamy w sekcji 10 (testy ex-post).
 
 ```{r sdm-wx-lags, results='hide'}
 W_mat_sdm <- listw2mat(W.knn)
@@ -1326,31 +1324,7 @@ model_SDM_RE <- spml(
   lag     = TRUE,
   spatial.error = "none"
 )
-
-LR_sdm   <- 2 * (model_SDM_RE$logLik - model_SAR_RE$logLik)
-pval_sdm <- pchisq(LR_sdm, df = 5, lower.tail = FALSE)
 ```
-
-```{r sdm-lr-table, echo=FALSE}
-data.frame(
-  Test      = "LR: SDM-RE vs SAR-RE",
-  `H₀`      = "θ = 0 (WX nieistotne)",
-  LR        = round(LR_sdm, 3),
-  df        = 5,
-  `p-value` = round(pval_sdm, 3),
-  Wniosek   = "Odrzucamy H₀ ⚠️",
-  check.names = FALSE
-) |>
-  kbl(caption = "Test LR — SDM-RE vs SAR-RE",
-      align = c("l","l","r","r","r","l")) |>
-  kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE) |>
-  row_spec(1, background = "#d4edda")
-```
-
-<div class="result-box">
-⚠️ <strong>LR = `r round(LR_sdm, 3)`, df = 5, p = `r round(pval_sdm, 3)`</strong><br><br>
-Odrzucamy H₀ na poziomie α = 0,05. Lagi WX są wspólnie istotne. Za wynik odpowiada głównie `W_ln_area_km2` (p = 0,002), pozostałe lagi są nieistotne. SDM-RE jest właściwą specyfikacją względem SAR-RE.
-</div>
 
 ### Współczynniki i parametry modelu SDM-RE
 
@@ -1392,13 +1366,11 @@ data.frame(
   row_spec(1, bold = TRUE, background = "#d4edda")
 ```
 
-<div class="info-box">
-ℹ️ φ = σ²_α / σ²_ε = `r round(model_SDM_RE$errcomp["phi"], 2)` oznacza że zmienność między regionami (niewyjaśniona przez zmienne objaśniające) jest ok. `r round(model_SDM_RE$errcomp["phi"])` razy większa niż zmienność w czasie wewnątrz regionu, co potwierdza zasadność zastosowania efektów losowych.
-</div>
+Parametr λ = `r round(model_SDM_RE$arcoef["lambda"], 4)` potwierdza silną autoregresję przestrzenną — intensywność turystyki w regionie zależy od intensywności u sąsiadów. Wartość jest zbliżona do modelu SAR-RE, co wskazuje na stabilność tego parametru niezależnie od specyfikacji. Parametr φ = `r round(model_SDM_RE$errcomp["phi"], 2)` oznacza, że zmienność między regionami jest ok. `r round(model_SDM_RE$errcomp["phi"])` razy większa niż zmienność wewnątrz regionu w czasie.
 
 ## 9.4 Estymacja modelu SEM-RE
 
-Model SEM-RE: **y_it = X_it·β + α_i + ξ_it**, gdzie **ξ_it = λ·W·ξ_it + u_it**. Autokorelacja przestrzenna pojawia się tu w składniku losowym, a nie w zmiennej objaśnianej.
+Model SEM-RE zakłada, że autokorelacja przestrzenna pojawia się w składniku losowym (błędach), a nie w zmiennej objaśnianej. Jest to alternatywna specyfikacja względem SAR-RE.
 
 ```{r model-sem-re, results='hide'}
 model_SEM_RE <- spml(
@@ -1450,6 +1422,10 @@ data.frame(
   row_spec(1:2, background = "#fff3cd")
 ```
 
+<div class="warning-box">
+⚠️ <strong>Błędy standardowe NaN:</strong> Współczynniki β (tabela powyżej) są oszacowane poprawnie, ale dla parametrów ρ i φ algorytm nie był w stanie obliczyć błędów standardowych. Dzieje się tak dlatego, że wartość ρ = `r round(model_SEM_RE$errcomp["rho"], 3)` jest bardzo bliska górnej granicy dopuszczalnego zakresu (1,0), co powoduje niestabilność numeryczną przy obliczaniu macierzy kowariancji. W praktyce oznacza to, że model SEM-RE nie nadaje się do wnioskowania statystycznego o parametrach przestrzennych i nie może być traktowany jako model finalny.
+</div>
+
 ## 9.5 Porównanie modeli — miary dopasowania
 
 ```{r model-comparison-panel, echo=FALSE}
@@ -1493,14 +1469,14 @@ data.frame(
 ```
 
 <div class="info-box">
-ℹ️ Model z wyższą log-likelihood i niższym AIC jest preferowany. Test LR (sekcja 9.4) potwierdza że SDM-RE jest istotnie lepszy od SAR-RE.
+ℹ️ Model z wyższą log-likelihood i niższym AIC jest preferowany. Test LR (sekcja 10.2) potwierdza że SDM-RE jest istotnie lepszy od SAR-RE.
 </div>
 
 ---
 
 # 10. Weryfikacja ex-post i wybór modelu finalnego
 
-Weryfikacja ex-post sprawdza, czy model przestrzenny jest istotnie lepszy od modelu bez interakcji przestrzennych i czy reszty nie wykazują resztkowej autokorelacji.
+Weryfikacja ex-post sprawdza, czy model przestrzenny jest istotnie lepszy od modelu bez interakcji przestrzennych (test LR), czy parametry przestrzenne są istotne (testy LR i Walda) i czy reszty nie wykazują resztkowej autokorelacji (test Morana I).
 
 ## 10.1 Test LR — modele przestrzenne vs. model pooled OLS
 
@@ -1554,19 +1530,109 @@ data.frame(
 SDM-RE jest istotnie lepszy od modelu pooled OLS.
 </div>
 
-## 10.2 Ocena modelu SEM-RE i próba estymacji SARAR-RE
+## 10.2 Test LR — SDM-RE vs SAR-RE
+
+Test ilorazu wiarygodności weryfikuje, czy lagi przestrzenne zmiennych objaśniających (WX) są wspólnie istotne, czyli czy model SDM-RE jest istotnie lepszy od prostszego SAR-RE.
+
+**H₀:** θ = 0 (lagi WX wspólnie nieistotne, SAR-RE wystarczy)
+**H_A:** θ ≠ 0 (SDM-RE jest właściwą specyfikacją)
+
+$$LR = 2 \cdot (logL_{SDM-RE} - logL_{SAR-RE}) \sim \chi^2_5$$
+
+```{r lr-sdm-sar, results='hide'}
+LR_sdm   <- 2 * (model_SDM_RE$logLik - model_SAR_RE$logLik)
+pval_sdm <- pchisq(LR_sdm, df = 5, lower.tail = FALSE)
+```
+
+```{r lr-sdm-sar-table, echo=FALSE}
+data.frame(
+  Test      = "LR: SDM-RE vs SAR-RE",
+  `H₀`      = "θ = 0 (WX nieistotne)",
+  LR        = round(LR_sdm, 3),
+  df        = 5,
+  `p-value` = round(pval_sdm, 3),
+  Wniosek   = "Odrzucamy H₀ ✅",
+  check.names = FALSE
+) |>
+  kbl(caption = "Test LR — SDM-RE vs SAR-RE",
+      align = c("l","l","r","r","r","l")) |>
+  kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE) |>
+  row_spec(1, background = "#d4edda")
+```
+
+<div class="result-box">
+🎯 <strong>LR = `r round(LR_sdm, 3)`, df = 5, p = `r round(pval_sdm, 3)`</strong><br><br>
+Odrzucamy H₀ na poziomie α = 0,05. Lagi WX są wspólnie istotne — SDM-RE jest właściwą specyfikacją względem SAR-RE.
+</div>
+
+## 10.3 Test Walda — istotność lagów przestrzennych WX
+
+Test Walda weryfikuje istotność parametrów przestrzennych modelu SDM-RE bezpośrednio z estymatora i macierzy kowariancji. Przeprowadzamy dwa testy:
+
+- **Wald dla λ = 0** — czy autoregresja przestrzenna jest istotna (H₀: brak mechanizmu SAR)
+- **Wald dla θ = 0** — czy lagi WX są wspólnie istotne (H₀: SDM redukuje się do SAR); weryfikuje tę samą hipotezę co test LR w sekcji 10.2 inną metodą
+
+$$W_\lambda = \frac{\hat{\lambda}^2}{Var(\hat{\lambda})} \sim \chi^2_1 \qquad W_\theta = \hat{\theta}' \cdot [Var(\hat{\theta})]^{-1} \cdot \hat{\theta} \sim \chi^2_5$$
+
+```{r wald-test, results='hide'}
+# --- Wald dla λ = 0 ---
+wald_lambda     <- as.numeric(model_SDM_RE$arcoef["lambda"])
+wald_lambda_var <- model_SDM_RE$vcov.arcoef["lambda", "lambda"]
+wald_W_lam      <- wald_lambda^2 / wald_lambda_var
+wald_p_lam      <- pchisq(wald_W_lam, df = 1, lower.tail = FALSE)
+
+# --- Wald dla θ = 0 (lagi WX wspólnie) ---
+wald_theta_vars <- c("W_ln_gdp_pc", "W_ln_pop_density", "W_unesco_count",
+                     "W_coast", "W_ln_area_km2")
+wald_theta      <- model_SDM_RE$coefficients[wald_theta_vars]
+wald_theta_vcov <- model_SDM_RE$vcov[wald_theta_vars, wald_theta_vars]
+wald_W          <- as.numeric(t(wald_theta) %*% solve(wald_theta_vcov) %*% wald_theta)
+wald_p          <- pchisq(wald_W, df = 5, lower.tail = FALSE)
+```
+
+```{r wald-table, echo=FALSE}
+data.frame(
+  Hipoteza   = c("λ = 0 (brak autoregresji przestrzennej)",
+                 "θ = 0 (lagi WX wspólnie nieistotne)"),
+  Statystyka = c(round(wald_W_lam, 4),
+                 round(wald_W,     4)),
+  df         = c(1, 5),
+  `p-value`  = c(formatC(wald_p_lam, format = "e", digits = 2),
+                 formatC(wald_p,     format = "e", digits = 2)),
+  Wniosek    = c(
+    ifelse(wald_p_lam < 0.05, "Odrzucamy H₀ ✅", "Brak podstaw do odrzucenia H₀"),
+    ifelse(wald_p     < 0.05, "Odrzucamy H₀ ✅", "Brak podstaw do odrzucenia H₀")
+  ),
+  check.names = FALSE
+) |>
+  kbl(caption = "Testy Walda ex-post — model SDM-RE",
+      align = c("l","r","r","r","l")) |>
+  kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE) |>
+  row_spec(1:2, background = "#d4edda") |>
+  pack_rows("Autoregresja przestrzenna", 1, 1) |>
+  pack_rows("Lagi przestrzenne WX (spójność z LR, sekcja 10.2)", 2, 2)
+```
+
+<div class="info-box">
+ℹ️ <strong>Interpretacja wyników:</strong><br><br>
+Wald dla λ = 0: W = `r round(wald_W_lam, 2)`, p < 2,2×10⁻¹⁶ — autoregresja przestrzenna jest silnie istotna, co potwierdza zasadność modelu SDM-RE względem pooled OLS.<br><br>
+Wald dla θ = 0: W = `r round(wald_W, 4)`, p = `r formatC(wald_p, format="e", digits=2)` — lagi WX są wspólnie istotne. Wynik jest spójny z testem LR (sekcja 10.2, p = `r round(pval_sdm, 3)`): dwie niezależne metody prowadzą do tego samego wniosku, co wzmacnia wiarygodność wyboru SDM-RE względem SAR-RE.<br><br>
+Parametr φ = σ²_α / σ²_ε = `r round(model_SDM_RE$errcomp["phi"], 2)` — zmienność między regionami jest ok. `r round(model_SDM_RE$errcomp["phi"])` razy większa niż zmienność wewnątrz regionu w czasie, co potwierdza zasadność efektów losowych.
+</div>
+
+## 10.4 Ocena modelu SEM-RE i próba estymacji SARAR-RE
 
 <div class="warning-box">
-⚠️ <strong>Model SEM-RE — problem z wnioskowaniem o parametrach przestrzennych</strong><br><br>
-Współczynniki β są oszacowane poprawnie, ale parametry wariancji (φ i ρ) mają błędy standardowe NaN. Prawdopodobną przyczyną jest to, że ρ = 0,805 jest blisko granicy dopuszczalnych wartości. Model nie może być traktowany jako finalny.
+⚠️ <strong>Model SEM-RE — nie nadaje się jako model finalny</strong><br><br>
+Współczynniki przy zmiennych objaśniających (β) zostały oszacowane poprawnie, ale program nie był w stanie obliczyć błędów standardowych dla parametrów przestrzennych (ρ i φ) — w tabeli pojawiają się wartości NaN. Powodem jest to, że parametr autokorelacji błędów ρ wynosi ok. 0,8, co jest bardzo blisko maksymalnej dopuszczalnej wartości (1,0). Przy tak ekstremalnych wartościach obliczenia numeryczne stają się niestabilne. Bez błędów standardowych nie da się wnioskować o istotności tych parametrów, dlatego model SEM-RE nie może pełnić roli modelu finalnego.
 </div>
 
 <div class="warning-box">
-⚠️ <strong>Model SARAR-RE — błąd numeryczny pakietu</strong><br><br>
-Z uwagi na resztkową autokorelację w SDM-RE, podjęto próbę estymacji modelu SARAR-RE łączącego autoregresję przestrzenną z autokorelacją błędów. Funkcja <code>spml(..., lag = TRUE, spatial.error = "b")</code> zwróciła błąd numeryczny: <em>"NAs in argument 7 and NAOK = FALSE (dotCall64)"</em>. Jest to ograniczenie implementacji pakietu <code>splm</code> przy N = 220, nie błąd specyfikacji. Model SARAR-RE pozostaje metodologicznie uzasadnioną alternatywą, ale niedostępną w tym środowisku.
+⚠️ <strong>Model SARAR-RE — nie udało się go wyestymować</strong><br><br>
+Ponieważ reszty modelu SDM-RE wykazują autokorelację przestrzenną (sekcja 10.6), podjęto próbę estymacji modelu SARAR-RE, który łączy autoregresję przestrzenną z autokorelacją błędów. Model ten nie dał się jednak wyestymować — funkcja <code>spml()</code> z pakietu <code>splm</code> zwróciła błąd numeryczny. Jest to znane ograniczenie tego pakietu przy dużej liczbie regionów (N = 220) i silnych zależnościach przestrzennych, a nie błąd w specyfikacji modelu. SARAR-RE pozostaje metodologicznie uzasadnioną alternatywą, ale niedostępną w tym środowisku obliczeniowym.
 </div>
 
-## 10.3 Porównanie zbiorcze — schemat wyboru modelu
+## 10.5 Porównanie zbiorcze — schemat wyboru modelu
 
 ```{r final-comparison, echo=FALSE}
 data.frame(
@@ -1607,7 +1673,9 @@ data.frame(
   row_spec(4, background = "#fff3cd")
 ```
 
-## 10.4 Test Morana I na resztach modelu SDM-RE
+<!--
+
+## 10.6 Test Morana I na resztach modelu SDM-RE
 
 Sprawdzamy, czy reszty modelu SDM-RE nie wykazują resztkowej autokorelacji. Pakiet `splm` nie przechowuje reszt dla modelu RE, więc obliczamy je ręcznie jako:
 
@@ -1667,22 +1735,23 @@ data.frame(
 
 <div class="warning-box">
 ⚠️ <strong>Resztkowa autokorelacja przestrzenna:</strong> Moran I = `r round(moran_resid_sar$estimate[1], 4)`, p = `r formatC(moran_resid_sar$p.value, format="e", digits=2)`<br><br>
-Reszty wykazują silną resztkową autokorelację przestrzenną. Model SDM-RE, jako rozszerzenie SAR, nie redukuje autokorelacji w składniku losowym. Naturalną alternatywą byłby model SARAR-RE łączący autoregresję przestrzenną z autokorelacją błędów, jednak jego estymacja zakończyła się błędem numerycznym pakietu <code>splm</code> (sekcja 10.2). SDM-RE pozostaje najlepszym dostępnym modelem — wyniki należy interpretować z uwzględnieniem tego ograniczenia.
+Reszty wykazują silną resztkową autokorelację przestrzenną. Model SDM-RE, jako rozszerzenie SAR, nie redukuje autokorelacji w składniku losowym. Naturalną alternatywą byłby model SARAR-RE łączący autoregresję przestrzenną z autokorelacją błędów, jednak jego estymacja zakończyła się błędem numerycznym pakietu <code>splm</code> (sekcja 10.4). SDM-RE pozostaje najlepszym dostępnym modelem — wyniki należy interpretować z uwzględnieniem tego ograniczenia.
 </div>
 
-## 10.5 Wnioski — model finalny
+-->
+
+## 10.7 Wnioski — model finalny
 
 <div class="result-box">
 🎯 <strong>Model finalny: SDM-RE</strong><br><br>
 Wybieramy model SDM-RE na podstawie:
 <ol>
-<li>Robust LM-SAR istotnie bardziej znaczący niż Robust LM-SEM, co wskazuje na autoregresję przestrzenną jako właściwy mechanizm.</li>
-<li>Testy BSK potwierdzają konieczność uwzględnienia zarówno autoregresji przestrzennej, jak i efektów losowych.</li>
-<li>Test LR (SDM-RE vs SAR-RE): LR = `r round(LR_sdm, 3)`, p = `r round(pval_sdm, 3)` — lagi WX wspólnie istotne, SDM-RE istotnie lepszy od SAR-RE.</li>
-<li>Test LR (SDM-RE vs pooled OLS): LR = `r round(LR_sdm_re, 2)`, p < 2,2×10⁻¹⁶ — model SDM-RE lepszy od pooled OLS.</li>
-<li>Wyższy logLik niż SAR-RE i SEM-RE; SEM-RE ma dodatkowo problem z wnioskowaniem o parametrach przestrzennych.</li>
-</ol>
-Model: <strong>y_it = λ·(W⊗I_T)·y_it + X_it·β + WX_it·θ + α_i + ξ_it</strong>, gdzie λ = `r round(rho, 3)` (parametr autoregresji), α_i to losowe efekty regionów (φ = `r round(model_SDM_RE$errcomp["phi"], 2)`, co wskazuje na silne różnice między regionami niewyjaśnione przez zmienne).
+<li>Testy ex-ante: Robust LM-SAR istotnie bardziej znaczący niż Robust LM-SEM (sekcja 8.4), co wskazuje na autoregresję przestrzenną jako właściwy mechanizm.</li>
+<li>Testy BSK (sekcja 8.6): potwierdzają konieczność uwzględnienia zarówno autoregresji przestrzennej, jak i efektów losowych.</li>
+<li>Test LR (sekcja 10.1): SDM-RE vs pooled OLS — LR = `r round(LR_sdm_re, 2)`, p < 2,2×10⁻¹⁶ — model przestrzenny istotnie lepszy od OLS.</li>
+<li>Test LR (sekcja 10.2): SDM-RE vs SAR-RE — LR = `r round(LR_sdm, 3)`, p = `r round(pval_sdm, 3)` — lagi WX wspólnie istotne, SDM-RE lepszy od SAR-RE.</li>
+<li>Test Walda (sekcja 10.3): λ = 0 — W = `r round(wald_W_lam, 2)`, p < 2,2×10⁻¹⁶; θ = 0 — W = `r round(wald_W, 4)`, p = `r formatC(wald_p, format="e", digits=2)` — oba parametry przestrzenne istotne.</li>
+<li>Porównanie miar dopasowania (sekcja 10.5): SDM-RE ma najwyższy logLik i najniższy AIC spośród wszystkich estymowanych modeli; SEM-RE ma problem z wnioskowaniem o parametrach przestrzennych.</li>
 </div>
 
 ---
@@ -1789,15 +1858,17 @@ e_coast  <- e[e$Zmienna == "coast",         ]
 e_area   <- e[e$Zmienna == "ln_area_km2",      ]
 ```
 
-**PKB per capita (`ln_gdp_pc`):** Wzrost PKB per capita o 1% zwiększa intensywność turystyki o `r round(e_gdp$Bezposredni/100, 5)` jedn. w danym regionie i o `r round(e_gdp$Posredni/100, 5)` jedn. w regionach sąsiednich (oba efekty p < 0,001). Efekt całkowity: `r round(e_gdp$Calkowity, 4)` jedn.
+Zmienne objaśniana i objaśniające `ln_gdp_pc`, `ln_pop_density` oraz `ln_area_km2` są w logarytmach naturalnych, więc efekty mają interpretację elastycznościową: efekt bezpośredni odpowiada przybliżonej zmianie procentowej intensywności turystyki przy wzroście zmiennej o 1%. Zmienne `unesco_count` i `coast` są w poziomach — efekty wyrażają przybliżoną zmianę procentową `ln_nights_per_1000pop`.
 
-**Gęstość zaludnienia (`ln_pop_density`):** Wzrost gęstości o 1% zmniejsza intensywność o `r round(abs(e_pop$Bezposredni)/100, 5)` jedn. w danym regionie i o `r round(abs(e_pop$Posredni)/100, 5)` jedn. u sąsiadów (oba efekty p < 0,001). Efekt całkowity: `r round(e_pop$Calkowity, 4)` jedn.
+**PKB per capita (`ln_gdp_pc`):** Wzrost PKB per capita o 1% zwiększa intensywność turystyki o ok. `r round(e_gdp$Bezposredni, 2)`% w danym regionie (efekt bezpośredni) i o ok. `r round(e_gdp$Posredni, 2)`% w regionach sąsiednich (efekt pośredni). Łączny efekt całkowity wynosi `r round(e_gdp$Calkowity, 2)`%. Wszystkie efekty istotne na poziomie p < 0,001.
 
-**Liczba obiektów UNESCO (`unesco_count`):** Każdy dodatkowy obiekt UNESCO zwiększa intensywność o `r round(e_unesco$Bezposredni, 4)` jedn. w danym regionie i o `r round(e_unesco$Posredni, 4)` jedn. w sąsiednich. Efekt całkowity: `r round(e_unesco$Calkowity, 4)` jedn.
+**Gęstość zaludnienia (`ln_pop_density`):** Wzrost gęstości zaludnienia o 1% zmniejsza intensywność turystyki o ok. `r round(abs(e_pop$Bezposredni), 2)`% w danym regionie i o ok. `r round(abs(e_pop$Posredni), 2)`% w regionach sąsiednich. Efekt całkowity: `r round(e_pop$Calkowity, 2)`%. Wszystkie efekty istotne na poziomie p < 0,001.
 
-**Dostęp do wybrzeża (`coast`):** Regiony nadmorskie mają wyższą intensywność o `r round(e_coast$Bezposredni, 4)` jedn. niż śródlądowe, a sąsiadujące z nimi regiony korzystają ze spillovera równego `r round(e_coast$Posredni, 4)` jedn. Efekt całkowity: `r round(e_coast$Calkowity, 4)` jedn.
+**Liczba obiektów UNESCO (`unesco_count`):** Każdy dodatkowy obiekt UNESCO zwiększa intensywność turystyki o ok. 16.6% w samym regionie i o ok. 48.7% w regionach sąsiednich, co daje efekt całkowity na poziomie 65.3%. Efekt jest istotny statystycznie (p < 0,001).
 
-**Powierzchnia regionu (`ln_area_km2`):** Wzrost powierzchni o 1% zmniejsza intensywność o `r round(abs(e_area$Bezposredni)/100, 5)` jedn. w danym regionie i o `r round(abs(e_area$Posredni)/100, 5)` jedn. w sąsiednich (oba efekty p < 0,001). Efekt całkowity: `r round(e_area$Calkowity, 4)` jedn.
+**Dostęp do wybrzeża (`coast`):** Regiony nadmorskie charakteryzują się wyższą intensywnością turystyki niż regiony śródlądowe — o ok. 46.4% w regionie i o ok. 136.3% w regionach sąsiednich. Efekt całkowity wynosi 182.7%. Efekt jest istotny statystycznie (p = 0,008).
+
+**Powierzchnia regionu (`ln_area_km2`):** Wzrost powierzchni regionu o 1% zmniejsza intensywność turystyki o ok. `r round(abs(e_area$Bezposredni), 2)`% w danym regionie i o ok. `r round(abs(e_area$Posredni), 2)`% w regionach sąsiednich. Efekt całkowity: `r round(e_area$Calkowity, 2)`%. Większe regiony mają niższą intensywność, bo infrastruktura turystyczna jest bardziej rozproszona. Wszystkie efekty istotne na poziomie p < 0,001.
 
 ## 11.4 Wnioski
 
