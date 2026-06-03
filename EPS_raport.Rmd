@@ -11,29 +11,36 @@ output:
     theme: flatly
 ---
 
-
 <style>
-.success-box {
-  background-color: #d4edda; border-left: 5px solid #28a745;
-  padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em;
+
+body {
+  background-image: url('gdansk.jpg'); 
+  background-size: cover; 
+  background-position: center center;
+  background-attachment: fixed; 
+  background-repeat: no-repeat;
 }
-.info-box {
-  background-color: #e8f4fd; border-left: 5px solid #2196F3;
-  padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em;
+
+.main-container {
+  background-color: rgba(255, 255, 255, 0.88) !important; 
+  padding: 40px 30px; 
+  border-radius: 8px; 
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); 
+  margin-top: 30px;
+  margin-bottom: 30px;
 }
-.result-box {
-  background-color: #fff3cd; border-left: 5px solid #ffc107;
-  padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em;
+
+.toc-content, #TOC {
+  background-color: transparent !important;
+  box-shadow: none !important;
 }
-.warning-box {
-  background-color: #f8d7da; border-left: 5px solid #dc3545;
-  padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em;
-}
+
+.success-box { background-color: #d4edda; border-left: 5px solid #28a745; padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em; }
+.info-box { background-color: #e8f4fd; border-left: 5px solid #2196F3; padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em; }
+.result-box { background-color: #fff3cd; border-left: 5px solid #ffc107; padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em; }
+.warning-box { background-color: #f8d7da; border-left: 5px solid #dc3545; padding: 12px 16px; margin: 12px 0; border-radius: 4px; font-size: 0.95em; }
 .metric-grid { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
-.metric-card {
-  background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px;
-  padding: 12px 18px; text-align: center; min-width: 130px; flex: 1;
-}
+.metric-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 12px 18px; text-align: center; min-width: 130px; flex: 1; }
 .metric-value { font-size: 1.6em; font-weight: bold; color: #2c3e50; }
 .metric-label { font-size: 0.8em; color: #6c757d; margin-top: 4px; }
 </style>
