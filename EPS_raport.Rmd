@@ -657,7 +657,6 @@ map_2019 <- map_2019 |>
   mutate(sig_level = case_when(
     lmp < 0.01  ~ "p < 0.01",
     lmp < 0.05  ~ "p < 0.05",
-    lmp < 0.10  ~ "p < 0.10",
     TRUE        ~ "nieistotne"
   ))
 
@@ -665,7 +664,6 @@ map_2023 <- map_2023 |>
   mutate(sig_level = case_when(
     lmp < 0.01  ~ "p < 0.01",
     lmp < 0.05  ~ "p < 0.05",
-    lmp < 0.10  ~ "p < 0.10",
     TRUE        ~ "nieistotne"
   ))
 ```
@@ -676,7 +674,7 @@ m_sig_2019 <- tm_shape(map_2019) +
     fill = "sig_level",
     fill.scale = tm_scale_categorical(
       values = c("p < 0.01" = "#08306b", "p < 0.05" = "#2171b5",
-                 "p < 0.10" = "#6baed6", "nieistotne" = "grey90")
+                 "nieistotne" = "grey90")
     ),
     fill.legend = tm_legend(title = "Istotność LISA"),
     col = "white", lwd = 0.3
@@ -694,7 +692,7 @@ m_sig_2023 <- tm_shape(map_2023) +
     fill = "sig_level",
     fill.scale = tm_scale_categorical(
       values = c("p < 0.01" = "#08306b", "p < 0.05" = "#2171b5",
-                 "p < 0.10" = "#6baed6", "nieistotne" = "grey90")
+                 "nieistotne" = "grey90")
     ),
     fill.legend = tm_legend(title = "Istotność LISA"),
     col = "white", lwd = 0.3
@@ -758,10 +756,14 @@ cor_matrix <- d |>
 ```
 
 ```{r cor-table, echo=FALSE}
-cor_matrix |>
-  kbl(caption = "Macierz korelacji zmiennych objaśniających (2019)") |>
+cor_df <- as.data.frame(cor_matrix)
+cor_df[] <- lapply(cor_df, function(x) cell_spec(x, background = "white", color = "black"))
+cor_df[1, 3] <- cell_spec(cor_matrix[1, 3], bold = TRUE, color = "white", background = "#dc3545")
+cor_df[3, 1] <- cell_spec(cor_matrix[3, 1], bold = TRUE, color = "white", background = "#dc3545")
+
+cor_df |>
+  kbl(escape = FALSE, caption = "Macierz korelacji zmiennych objaśniających (2019)") |>
   kable_styling(bootstrap_options = c("striped","hover","condensed"), full_width = FALSE) |>
-  column_spec(3, bold = TRUE, color = "white", background = "#dc3545") |>
   column_spec(1, bold = TRUE)
 ```
 
@@ -1151,9 +1153,6 @@ Model SAR ma postać: **y = λ·W·y + Xβ + ε**, gdzie λ mierzy siłę wpływ
 ℹ️ Reszty modelu przekrojowego OLS (2019, n = 220) wykazują istotną autokorelację przestrzenną (I = `r round(moran_resid$estimate[1],4)`, p = `r formatC(moran_resid$p.value, format="e", digits=2)`), co jest spójne z wynikami testów LM na pełnym panelu. Wysoce istotne statystyki LM na pełnym panelu wynikają z dużej liczby obserwacji (N = 1540), która zwiększa moc testów.
 </div>
 
-### Weryfikacja wyboru SAR względem SDM
-
-Model SAR jest przypadkiem szczególnym modelu SDM (Spatial Durbin Model), który dodatkowo uwzględnia przestrzenne lagi zmiennych objaśniających (WX). Formalnie weryfikujemy, czy SAR nie jest zbyt dużym uproszczeniem za pomocą testu LR (H₀: θ = 0, lagi WX wspólnie nieistotne). Obliczenia i wyniki testu przedstawiono w sekcji 10.2, po estymacji obu modeli. Wynik: **LR = 11,747, df = 5, p = 0,038**. Odrzucamy H₀, SDM-RE jest właściwą specyfikacją.
 
 ## 8.6 Testy BSK — wnioski i aktualizacja wyboru modelu
 
@@ -1211,11 +1210,6 @@ data.frame(
   pack_rows("Testy wspólne i brzegowe", 1, 3) |>
   pack_rows("Testy warunkowe", 4, 5)
 ```
-
-<div class="result-box">
-🎯 <strong>Wybór specyfikacji: SAR-RE</strong><br><br>
-Wszystkie pięć testów BSK jest wysoce istotnych (p < 2,2×10⁻¹⁶). Test łączny (LM-H) odrzuca jednoczesny brak obu efektów. Testy warunkowe CLM-λ i CLM-μ pokazują, że każdy z efektów jest istotny niezależnie od obecności drugiego. Model musi więc uwzględniać <strong>jednocześnie</strong> autoregresję przestrzenną i losowe efekty indywidualne. Test LR (sekcja 10.2) potwierdza że SDM-RE jest właściwą specyfikacją względem SAR-RE.
-</div>
 
 <div class="info-box">
 ℹ️ Testy BSK uzupełniają wnioski z testów LM. Testy LM wskazały SAR jako właściwą specyfikację przestrzenną, a testy BSK potwierdzają konieczność dodania efektów losowych, które uchwytują nieobserwowalne różnice między regionami stałe w czasie.
@@ -1428,7 +1422,7 @@ data.frame(
 ```
 
 <div class="warning-box">
-⚠️ <strong>Błędy standardowe NaN:</strong> Współczynniki β (tabela powyżej) są oszacowane poprawnie, ale dla parametrów ρ i φ algorytm nie był w stanie obliczyć błędów standardowych. Dzieje się tak dlatego, że wartość ρ = `r round(model_SEM_RE$errcomp["rho"], 3)` jest bardzo bliska górnej granicy dopuszczalnego zakresu (1,0), co powoduje niestabilność numeryczną przy obliczaniu macierzy kowariancji. W praktyce oznacza to, że model SEM-RE nie nadaje się do wnioskowania statystycznego o parametrach przestrzennych i nie może być traktowany jako model finalny.
+⚠️ <strong>Błędy standardowe NaN:</strong> Współczynniki β (tabela powyżej) są oszacowane poprawnie, ale dla parametrów ρ i φ algorytm nie był w stanie obliczyć błędów standardowych. Dzieje się tak dlatego, że wartość ρ = `r round(model_SEM_RE$errcomp["rho"], 3)` jest bardzo bliska górnej granicy dopuszczalnego zakresu (1,0), co powoduje niestabilność numeryczną przy obliczaniu macierzy kowariancji. W praktyce oznacza to, że wnioskowanie statystyczne o parametrach przestrzennych modelu SEM-RE jest obarczone dużą niepewnością i należy traktować jego wyniki z ostrożnością.
 </div>
 
 ## 9.5 Porównanie modeli — miary dopasowania
@@ -1814,10 +1808,12 @@ mc_results <- data.frame(
 ## 11.2 Wyniki — tabela efektów przestrzennych z błędami standardowymi
 
 ```{r effects-table, echo=FALSE}
+beta_coef <- model_SDM_RE$coefficients
+
 effects_full <- effects_df |>
   left_join(mc_results, by = "Zmienna") |>
   mutate(
-    beta_val    = as.numeric(beta[vars]),
+    beta_val    = as.numeric(beta_coef[vars]),
     Bezp_fmt    = paste0(round(Bezposredni, 4), " (", round(Bezp_SE, 4), ")"),
     Posred_fmt  = paste0(round(Posredni,    4), " (", round(Posred_SE, 4), ")"),
     Calko_fmt   = paste0(round(Calkowity,   4), " (", round(Calkowity_SE, 4), ")"),
@@ -1829,7 +1825,7 @@ effects_full <- effects_df |>
 
 data.frame(
   Zmienna             = vars,
-  `β (SDM-RE)`        = round(beta[vars], 5),
+  `β (SDM-RE)`        = round(beta_coef[vars], 5),
   `Efekt bezp. (SE)`  = effects_full$Bezp_fmt,
   `Efekt pośr. (SE)`  = effects_full$Posred_fmt,
   `Efekt całk. (SE)`  = effects_full$Calko_fmt,
